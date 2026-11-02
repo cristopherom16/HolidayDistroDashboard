@@ -312,7 +312,6 @@
       { id: "MEX-30", name: "Carlos Rios", country: "Mexico", team: "Management", supervisor: "Carlos Rios", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" }
     ];
 
-    // Función auxiliar para parsear horas en minutos
     function parseTimeToMinutes(tStr) {
       if (!tStr) return 480;
       const clean = tStr.trim().toUpperCase();
@@ -327,7 +326,6 @@
     }
 
     function App() {
-      // Estado de Tema Claro / Oscuro
       const [isDarkMode, setIsDarkMode] = useState(true);
 
       useEffect(() => {
@@ -346,7 +344,6 @@
       const [holidaysData, setHolidaysData] = useState({ "labor": INITIAL_ROSTER });
       const [saveNotice, setSaveNotice] = useState(false);
 
-      // Cargar datos almacenados en segundo plano
       useEffect(() => {
         async function loadStored() {
           try {
@@ -361,7 +358,6 @@
         loadStored();
       }, []);
 
-      // Modal para nuevo Holiday
       const [isNewHolidayModalOpen, setIsNewHolidayModalOpen] = useState(false);
       const [newHolidayName, setNewHolidayName] = useState("");
       const [newHolidayDate, setNewHolidayDate] = useState("");
@@ -391,7 +387,6 @@
         }
       };
 
-      // Crear nuevo holiday
       const handleCreateHoliday = async (e) => {
         e.preventDefault();
         if (!newHolidayName.trim()) {
@@ -452,14 +447,20 @@
         commentDetail: ""
       });
 
-      // --- DISPATCHER & AVAILABILITY CALCULATOR ---
+      // DISPATCHER & AVAILABILITY CALCULATOR
       const [isAvailabilityModalOpen, setIsAvailabilityModalOpen] = useState(false);
       const [targetPercentage, setTargetPercentage] = useState(80);
       const [availabilityResult, setAvailabilityResult] = useState(null);
 
+      // Manejo de cambio de país (incluye protección con Management Password para ALL COUNTRIES)
       const handleCountrySelectChange = (e) => {
         const selected = e.target.value;
         if (selected === filterCountry) return;
+
+        if (selected === "ALL") {
+          triggerMgmtProtectedAction("SELECT_ALL_COUNTRIES", null);
+          return;
+        }
 
         setTargetCountry(selected);
         setCountryPasswordInput("");
@@ -479,16 +480,25 @@
       };
 
       const teams = useMemo(() => {
-        const countryStaff = staff.filter(s => s.country === filterCountry);
+        const countryStaff = filterCountry === "ALL" 
+          ? staff 
+          : staff.filter(s => s.country === filterCountry);
         return ["ALL", ...new Set(countryStaff.map(s => s.team))].sort();
       }, [staff, filterCountry]);
 
       const supervisors = useMemo(() => {
-        const countryStaff = staff.filter(s => s.country === filterCountry);
+        const countryStaff = filterCountry === "ALL" 
+          ? staff 
+          : staff.filter(s => s.country === filterCountry);
         return ["ALL", ...new Set(countryStaff.map(s => s.supervisor))].sort();
       }, [staff, filterCountry]);
 
-      const countryStaffAll = useMemo(() => staff.filter(s => s.country === filterCountry), [staff, filterCountry]);
+      const countryStaffAll = useMemo(() => {
+        return filterCountry === "ALL" 
+          ? staff 
+          : staff.filter(s => s.country === filterCountry);
+      }, [staff, filterCountry]);
+
       const totalStaff = countryStaffAll.length;
       const requiredCount = countryStaffAll.filter(s => s.isRequired).length;
       const notRequiredCount = totalStaff - requiredCount;
@@ -497,7 +507,7 @@
 
       const filteredStaff = useMemo(() => {
         return staff.filter(agent => {
-          if (agent.country !== filterCountry) return false;
+          if (filterCountry !== "ALL" && agent.country !== filterCountry) return false;
 
           const matchSearch =
             agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -517,7 +527,7 @@
         });
       }, [staff, filterCountry, searchTerm, filterTeam, filterSupervisor, filterRequirement, filterComment]);
 
-      // ALGORITMO INTELIGENTE DE CÁLCULO DE DISPONIBILIDAD
+      // MOTOR DE DISPONIBILIDAD
       const runAvailabilityOptimization = (pct = targetPercentage) => {
         const agents = [...countryStaffAll];
         const total = agents.length;
@@ -525,7 +535,6 @@
 
         const targetCount = Math.round((pct / 100) * total);
 
-        // Agrupación por categoría
         const phoneAgents = [];
         const caseAgents = [];
         const managementAgents = [];
@@ -544,7 +553,6 @@
           }
         });
 
-        // Ordenar agentes en turnos por check-in para distribución uniforme
         const sortByShift = (arr) => {
           return arr.sort((a, b) => parseTimeToMinutes(a.checkIn) - parseTimeToMinutes(b.checkIn));
         };
@@ -567,7 +575,6 @@
             pickedIndices.add(idx);
           }
 
-          // Si el set tiene menos por redondeo, completar
           let cur = 0;
           while (pickedIndices.size < countNeeded && cur < arr.length) {
             pickedIndices.add(cur);
@@ -586,7 +593,6 @@
           return { selected, rest };
         };
 
-        // Asignación de cuotas proporcionales
         const phoneTarget = Math.round((phoneAgents.length / total) * targetCount);
         const caseTarget = Math.round((caseAgents.length / total) * targetCount);
         const mgmtTarget = Math.round((managementAgents.length / total) * targetCount);
@@ -611,7 +617,6 @@
           ...oPick.rest
         ];
 
-        // Ajustar discrepancias de redondeo
         if (selectedStaff.length < targetCount && leftover.length > 0) {
           const needed = targetCount - selectedStaff.length;
           selectedStaff.push(...leftover.slice(0, needed));
@@ -621,14 +626,12 @@
 
         const selectedIds = new Set(selectedStaff.map(a => a.id));
 
-        // Resumen de distribución horaria
         const scheduleBreakdown = {};
         selectedStaff.forEach(a => {
           const key = `${a.checkIn} - ${a.checkOut}`;
           scheduleBreakdown[key] = (scheduleBreakdown[key] || 0) + 1;
         });
 
-        // Verificación de cobertura 6 AM - 7 PM en Phones
         const phoneSchedules = selectedStaff.filter(a => a.team.toLowerCase().includes("phone")).map(a => a.checkIn);
         const covers6AM = phoneSchedules.some(s => parseTimeToMinutes(s) <= 360);
         const covers7PM = selectedStaff.filter(a => a.team.toLowerCase().includes("phone")).some(a => parseTimeToMinutes(a.checkOut) >= 1140);
@@ -644,8 +647,7 @@
           caseAgentsCount: selectedStaff.filter(a => a.team.toLowerCase().includes("case") || a.team.toLowerCase().includes("after hours")).length,
           managementCount: selectedStaff.filter(a => a.team.toLowerCase().includes("management")).length,
           covers6AM,
-          covers7PM,
-          selectedAgents: selectedStaff
+          covers7PM
         });
       };
 
@@ -655,7 +657,7 @@
 
         setStaff(prev =>
           prev.map(agent => {
-            if (agent.country !== filterCountry) return agent;
+            if (filterCountry !== "ALL" && agent.country !== filterCountry) return agent;
             const isReq = selIds.has(agent.id);
             return {
               ...agent,
@@ -681,12 +683,14 @@
           setIsMgmtAuthModalOpen(false);
           const { type, payload } = mgmtActionPayload;
 
-          if (type === "ADD_MODAL") {
+          if (type === "SELECT_ALL_COUNTRIES") {
+            setFilterCountry("ALL");
+          } else if (type === "ADD_MODAL") {
             setModalMode("add");
             setCurrentAgentData({
               id: "EMP-" + Date.now().toString().slice(-4),
               name: "",
-              country: filterCountry,
+              country: filterCountry === "ALL" ? "Guatemala" : filterCountry,
               team: teams[1] || "Management",
               supervisor: supervisors[1] || "",
               checkIn: "07:00:00 AM",
@@ -818,7 +822,6 @@
         XLSX.writeFile(workbook, `OFFICIAL_HOLIDAY_REPORT_${filterCountry}_${holidaySlug}.xlsx`);
       };
 
-      // Refrescar iconos Lucide de forma controlada
       useEffect(() => {
         if (window.lucide) {
           window.lucide.createIcons();
@@ -860,7 +863,7 @@
                 </div>
               </div>
 
-              {/* Selector de Feriado + Botón de Agregar Nuevo Feriado */}
+              {/* Selector de Feriado + Botones de Encabezado */}
               <div className="flex items-center flex-wrap gap-2.5">
                 <div className={`flex items-center border rounded-xl px-3 py-1.5 shadow-inner ${
                   isDarkMode ? "bg-slate-950 border-amber-500/30" : "bg-slate-100 border-amber-500/40"
@@ -925,7 +928,9 @@
               <div className={`border rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-sm ${
                 isDarkMode ? "bg-slate-900/70 border-slate-800" : "bg-white border-slate-200 shadow-slate-100"
               }`}>
-                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total in {filterCountry}</div>
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Total in {filterCountry === "ALL" ? "All Countries" : filterCountry}
+                </div>
                 <div className={`text-2xl sm:text-3xl font-black mt-1 ${isDarkMode ? "text-white" : "text-slate-900"}`}>{totalStaff}</div>
                 <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Active Roster Agents</div>
               </div>
@@ -974,7 +979,7 @@
             }`}>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 
-                {/* Selector de País con Contraseña */}
+                {/* Selector de País con Opción ALL COUNTRIES (Protegida) */}
                 <div className={`border rounded-xl p-2 ${
                   isDarkMode ? "bg-amber-500/10 border-amber-500/40" : "bg-amber-50/70 border-amber-300"
                 }`}>
@@ -991,6 +996,9 @@
                         : "bg-white border-amber-400 text-amber-700"
                     }`}
                   >
+                    <option value="ALL" className="bg-slate-900 text-amber-400 font-black">
+                      ★ ALL COUNTRIES (Mgmt Required)
+                    </option>
                     {COUNTRY_LIST.map(c => (
                       <option key={c} value={c} className="bg-slate-900 text-white font-medium">
                         {c}
@@ -1091,7 +1099,6 @@
                     <span>Add Agent</span>
                   </button>
 
-                  {/* NUEVO BOTÓN: CALCULATE AVAILABILITY */}
                   <button
                     onClick={() => {
                       runAvailabilityOptimization(targetPercentage);
@@ -1104,7 +1111,7 @@
                   </button>
 
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-medium ml-1">
-                    Showing <span className="font-bold text-amber-600 dark:text-amber-400">{filteredStaff.length}</span> of {countryStaffAll.length} agents in <span className="font-bold text-slate-900 dark:text-white">{filterCountry}</span>
+                    Showing <span className="font-bold text-amber-600 dark:text-amber-400">{filteredStaff.length}</span> of {countryStaffAll.length} agents in <span className="font-bold text-slate-900 dark:text-white">{filterCountry === "ALL" ? "All Countries" : filterCountry}</span>
                   </span>
                 </div>
 
@@ -1174,7 +1181,7 @@
                     {filteredStaff.length === 0 ? (
                       <tr>
                         <td colSpan="10" className="py-12 text-center text-slate-500 italic">
-                          No matching team members found for {filterCountry}.
+                          No matching team members found for {filterCountry === "ALL" ? "All Countries" : filterCountry}.
                         </td>
                       </tr>
                     ) : (
@@ -1333,7 +1340,7 @@
             OFFICIAL HOLIDAY REPORT &bull; Enterprise Operations 2026 &bull; Secure Multi-Country Roster Management
           </footer>
 
-          {/* BOTÓN FLOTANTE EN ESQUINA INFERIOR IZQUIERDA (LIGHT / DARK THEME TOGGLE) */}
+          {/* BOTÓN FLOTANTE EN ESQUINA INFERIOR IZQUIERDA (THEME SWITCHER) */}
           <div className="fixed bottom-5 left-5 z-40">
             <button
               onClick={() => setIsDarkMode(prev => !prev)}
@@ -1348,10 +1355,10 @@
             </button>
           </div>
 
-          {/* MODAL: CALCULATE AVAILABILITY */}
+          {/* MODAL: CALCULATE AVAILABILITY (Sin la lista de assigned agents preview) */}
           {isAvailabilityModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`border rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto ${
+              <div className={`border rounded-2xl max-w-xl w-full p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto ${
                 isDarkMode ? "bg-slate-900 border-indigo-500/50" : "bg-white border-indigo-200 text-slate-900"
               }`}>
                 <div className="flex items-center justify-between border-b pb-3 mb-4 border-slate-700/60">
@@ -1459,23 +1466,6 @@
                           }`}>
                             <span className="font-mono text-[11px]">{shift}</span>
                             <span className="font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Preview list */}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Assigned Agents Preview:
-                      </h4>
-                      <div className={`max-h-40 overflow-y-auto rounded-xl border p-2 text-xs divide-y ${
-                        isDarkMode ? "bg-slate-950 border-slate-800 divide-slate-800" : "bg-slate-50 border-slate-200 divide-slate-200"
-                      }`}>
-                        {availabilityResult.selectedAgents.map(a => (
-                          <div key={a.id} className="py-1 px-1 flex items-center justify-between">
-                            <span className="font-semibold text-slate-200">{a.name} <span className="text-[10px] text-slate-500 font-normal">({a.team})</span></span>
-                            <span className="font-mono text-amber-400 text-[11px]">{a.checkIn} - {a.checkOut}</span>
                           </div>
                         ))}
                       </div>
@@ -1627,7 +1617,7 @@
             </div>
           )}
 
-          {/* MODAL: AUTH MANAGEMENT */}
+          {/* MODAL: AUTH MANAGEMENT (Utilizado para acciones protegidas y ALL COUNTRIES) */}
           {isMgmtAuthModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className={`border rounded-2xl max-w-sm w-full p-6 shadow-2xl relative ${
@@ -1640,7 +1630,9 @@
                   Management Authentication
                 </h3>
                 <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Enter authorized credentials to modify agent roster data.
+                  {mgmtActionPayload?.type === "SELECT_ALL_COUNTRIES" 
+                    ? "Enter management credentials to view all countries simultaneously."
+                    : "Enter authorized credentials to modify agent roster data."}
                 </p>
 
                 <form onSubmit={handleVerifyMgmtPassword} className="mt-4 space-y-3">
