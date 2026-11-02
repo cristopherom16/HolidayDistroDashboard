@@ -7,6 +7,11 @@
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
   <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -21,6 +26,7 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
     body {
       font-family: 'Inter', sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
     .font-mono {
       font-family: 'JetBrains Mono', monospace;
@@ -30,10 +36,11 @@
       height: 8px;
     }
     ::-webkit-scrollbar-track {
-      background: #090d16;
+      background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-      background: #1e293b;
+      background: #475569;
+      border-radius: 4px;
     }
     ::-webkit-scrollbar-thumb:hover {
       background: #f59e0b;
@@ -305,7 +312,35 @@
       { id: "MEX-30", name: "Carlos Rios", country: "Mexico", team: "Management", supervisor: "Carlos Rios", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" }
     ];
 
+    // Función auxiliar para parsear horas en minutos
+    function parseTimeToMinutes(tStr) {
+      if (!tStr) return 480;
+      const clean = tStr.trim().toUpperCase();
+      const match = clean.match(/(\d+):(\d+)(?::\d+)?\s*(AM|PM)?/);
+      if (!match) return 480;
+      let hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const ampm = match[3];
+      if (ampm === "PM" && hours < 12) hours += 12;
+      if (ampm === "AM" && hours === 12) hours = 0;
+      return hours * 60 + minutes;
+    }
+
     function App() {
+      // Estado de Tema Claro / Oscuro
+      const [isDarkMode, setIsDarkMode] = useState(true);
+
+      useEffect(() => {
+        const root = document.documentElement;
+        if (isDarkMode) {
+          root.classList.add("dark");
+          document.body.className = "bg-slate-950 text-slate-100 min-h-screen";
+        } else {
+          root.classList.remove("dark");
+          document.body.className = "bg-slate-100 text-slate-900 min-h-screen";
+        }
+      }, [isDarkMode]);
+
       const [holidaysList, setHolidaysList] = useState(DEFAULT_US_HOLIDAYS_2026);
       const [selectedHolidayId, setSelectedHolidayId] = useState("labor");
       const [holidaysData, setHolidaysData] = useState({ "labor": INITIAL_ROSTER });
@@ -325,13 +360,6 @@
         }
         loadStored();
       }, []);
-
-      // Refrescar iconos Lucide de forma controlada
-      useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
-      }, [selectedHolidayId, holidaysList, holidaysData]);
 
       // Modal para nuevo Holiday
       const [isNewHolidayModalOpen, setIsNewHolidayModalOpen] = useState(false);
@@ -424,6 +452,11 @@
         commentDetail: ""
       });
 
+      // --- DISPATCHER & AVAILABILITY CALCULATOR ---
+      const [isAvailabilityModalOpen, setIsAvailabilityModalOpen] = useState(false);
+      const [targetPercentage, setTargetPercentage] = useState(80);
+      const [availabilityResult, setAvailabilityResult] = useState(null);
+
       const handleCountrySelectChange = (e) => {
         const selected = e.target.value;
         if (selected === filterCountry) return;
@@ -483,6 +516,157 @@
           return matchSearch && matchTeam && matchSupervisor && matchReq && matchComment;
         });
       }, [staff, filterCountry, searchTerm, filterTeam, filterSupervisor, filterRequirement, filterComment]);
+
+      // ALGORITMO INTELIGENTE DE CÁLCULO DE DISPONIBILIDAD
+      const runAvailabilityOptimization = (pct = targetPercentage) => {
+        const agents = [...countryStaffAll];
+        const total = agents.length;
+        if (total === 0) return;
+
+        const targetCount = Math.round((pct / 100) * total);
+
+        // Agrupación por categoría
+        const phoneAgents = [];
+        const caseAgents = [];
+        const managementAgents = [];
+        const otherAgents = [];
+
+        agents.forEach(a => {
+          const t = a.team.toLowerCase();
+          if (t.includes("phone")) {
+            phoneAgents.push(a);
+          } else if (t.includes("case") || t.includes("after hours")) {
+            caseAgents.push(a);
+          } else if (t.includes("management")) {
+            managementAgents.push(a);
+          } else {
+            otherAgents.push(a);
+          }
+        });
+
+        // Ordenar agentes en turnos por check-in para distribución uniforme
+        const sortByShift = (arr) => {
+          return arr.sort((a, b) => parseTimeToMinutes(a.checkIn) - parseTimeToMinutes(b.checkIn));
+        };
+
+        sortByShift(phoneAgents);
+        sortByShift(caseAgents);
+        sortByShift(managementAgents);
+        sortByShift(otherAgents);
+
+        const selectEvenly = (arr, countNeeded) => {
+          if (countNeeded <= 0) return { selected: [], rest: arr };
+          if (countNeeded >= arr.length) return { selected: [...arr], rest: [] };
+
+          const selected = [];
+          const step = (arr.length - 1) / Math.max(countNeeded - 1, 1);
+          const pickedIndices = new Set();
+
+          for (let i = 0; i < countNeeded; i++) {
+            const idx = Math.min(Math.round(i * step), arr.length - 1);
+            pickedIndices.add(idx);
+          }
+
+          // Si el set tiene menos por redondeo, completar
+          let cur = 0;
+          while (pickedIndices.size < countNeeded && cur < arr.length) {
+            pickedIndices.add(cur);
+            cur++;
+          }
+
+          const rest = [];
+          arr.forEach((item, index) => {
+            if (pickedIndices.has(index)) {
+              selected.push(item);
+            } else {
+              rest.push(item);
+            }
+          });
+
+          return { selected, rest };
+        };
+
+        // Asignación de cuotas proporcionales
+        const phoneTarget = Math.round((phoneAgents.length / total) * targetCount);
+        const caseTarget = Math.round((caseAgents.length / total) * targetCount);
+        const mgmtTarget = Math.round((managementAgents.length / total) * targetCount);
+        const otherTarget = targetCount - (phoneTarget + caseTarget + mgmtTarget);
+
+        const pPick = selectEvenly(phoneAgents, phoneTarget);
+        const cPick = selectEvenly(caseAgents, caseTarget);
+        const mPick = selectEvenly(managementAgents, mgmtTarget);
+        const oPick = selectEvenly(otherAgents, Math.max(0, otherTarget));
+
+        let selectedStaff = [
+          ...pPick.selected,
+          ...cPick.selected,
+          ...mPick.selected,
+          ...oPick.selected
+        ];
+
+        let leftover = [
+          ...pPick.rest,
+          ...cPick.rest,
+          ...mPick.rest,
+          ...oPick.rest
+        ];
+
+        // Ajustar discrepancias de redondeo
+        if (selectedStaff.length < targetCount && leftover.length > 0) {
+          const needed = targetCount - selectedStaff.length;
+          selectedStaff.push(...leftover.slice(0, needed));
+        } else if (selectedStaff.length > targetCount) {
+          selectedStaff = selectedStaff.slice(0, targetCount);
+        }
+
+        const selectedIds = new Set(selectedStaff.map(a => a.id));
+
+        // Resumen de distribución horaria
+        const scheduleBreakdown = {};
+        selectedStaff.forEach(a => {
+          const key = `${a.checkIn} - ${a.checkOut}`;
+          scheduleBreakdown[key] = (scheduleBreakdown[key] || 0) + 1;
+        });
+
+        // Verificación de cobertura 6 AM - 7 PM en Phones
+        const phoneSchedules = selectedStaff.filter(a => a.team.toLowerCase().includes("phone")).map(a => a.checkIn);
+        const covers6AM = phoneSchedules.some(s => parseTimeToMinutes(s) <= 360);
+        const covers7PM = selectedStaff.filter(a => a.team.toLowerCase().includes("phone")).some(a => parseTimeToMinutes(a.checkOut) >= 1140);
+
+        setAvailabilityResult({
+          percentage: pct,
+          total: total,
+          recommendedCount: selectedStaff.length,
+          offCount: total - selectedStaff.length,
+          selectedIds,
+          scheduleBreakdown,
+          phoneAgentsCount: selectedStaff.filter(a => a.team.toLowerCase().includes("phone")).length,
+          caseAgentsCount: selectedStaff.filter(a => a.team.toLowerCase().includes("case") || a.team.toLowerCase().includes("after hours")).length,
+          managementCount: selectedStaff.filter(a => a.team.toLowerCase().includes("management")).length,
+          covers6AM,
+          covers7PM,
+          selectedAgents: selectedStaff
+        });
+      };
+
+      const handleApplyRecommendation = () => {
+        if (!availabilityResult) return;
+        const selIds = availabilityResult.selectedIds;
+
+        setStaff(prev =>
+          prev.map(agent => {
+            if (agent.country !== filterCountry) return agent;
+            const isReq = selIds.has(agent.id);
+            return {
+              ...agent,
+              isRequired: isReq,
+              commentType: isReq ? "Shift Completed" : "Not Required to Come",
+              commentDetail: isReq ? "" : "Holiday Rested"
+            };
+          })
+        );
+        setIsAvailabilityModalOpen(false);
+      };
 
       const triggerMgmtProtectedAction = (actionType, payload) => {
         setMgmtActionPayload({ type: actionType, payload });
@@ -634,10 +818,30 @@
         XLSX.writeFile(workbook, `OFFICIAL_HOLIDAY_REPORT_${filterCountry}_${holidaySlug}.xlsx`);
       };
 
+      // Refrescar iconos Lucide de forma controlada
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, [
+        selectedHolidayId,
+        holidaysList,
+        holidaysData,
+        filterCountry,
+        filteredStaff,
+        isDarkMode,
+        isAvailabilityModalOpen,
+        availabilityResult
+      ]);
+
       return (
-        <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
+        <div className={`flex flex-col min-h-screen ${isDarkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-800"}`}>
           {/* HEADER PRINCIPAL */}
-          <header className="border-b border-amber-500/20 bg-slate-900/90 backdrop-blur-md sticky top-0 z-30 shadow-xl shadow-amber-950/10">
+          <header className={`border-b sticky top-0 z-30 shadow-xl backdrop-blur-md transition-colors ${
+            isDarkMode 
+              ? "border-amber-500/20 bg-slate-900/90 shadow-amber-950/10" 
+              : "border-amber-500/30 bg-white/95 shadow-slate-200"
+          }`}>
             <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center space-x-3.5">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 text-slate-950 font-black">
@@ -645,26 +849,28 @@
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-amber-400 drop-shadow-[0_2px_10px_rgba(251,191,36,0.3)] uppercase flex items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-amber-500 dark:text-amber-400 drop-shadow-[0_2px_10px_rgba(251,191,36,0.3)] uppercase flex items-center gap-2">
                       OFFICIAL HOLIDAY REPORT
                     </h1>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-widest">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 uppercase tracking-widest">
                       2026 EDITION
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 font-medium">Global Workforce Holiday Attendance & Dispatch System</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Global Workforce Holiday Attendance & Dispatch System</p>
                 </div>
               </div>
 
               {/* Selector de Feriado + Botón de Agregar Nuevo Feriado */}
               <div className="flex items-center flex-wrap gap-2.5">
-                <div className="flex items-center bg-slate-950 border border-amber-500/30 rounded-xl px-3 py-1.5 shadow-inner">
-                  <i data-lucide="sparkles" className="w-4 h-4 text-amber-400 mr-2 shrink-0"></i>
-                  <span className="text-xs text-amber-300/80 uppercase font-semibold mr-2 hidden sm:inline">Select Holiday:</span>
+                <div className={`flex items-center border rounded-xl px-3 py-1.5 shadow-inner ${
+                  isDarkMode ? "bg-slate-950 border-amber-500/30" : "bg-slate-100 border-amber-500/40"
+                }`}>
+                  <i data-lucide="sparkles" className="w-4 h-4 text-amber-500 dark:text-amber-400 mr-2 shrink-0"></i>
+                  <span className="text-xs text-amber-600 dark:text-amber-300/80 uppercase font-semibold mr-2 hidden sm:inline">Select Holiday:</span>
                   <select
                     value={selectedHolidayId}
                     onChange={(e) => setSelectedHolidayId(e.target.value)}
-                    className="bg-transparent text-amber-400 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer pr-2 max-w-[220px] sm:max-w-[280px] truncate"
+                    className="bg-transparent text-amber-600 dark:text-amber-400 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer pr-2 max-w-[220px] sm:max-w-[280px] truncate"
                   >
                     {holidaysList.map(h => (
                       <option key={h.id} value={h.id} className="bg-slate-900 text-white py-1">
@@ -677,7 +883,9 @@
                 <button
                   onClick={() => setIsNewHolidayModalOpen(true)}
                   title="Add Custom Holiday"
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
+                  className={`px-3 py-2 rounded-xl text-amber-500 dark:text-amber-400 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md ${
+                    isDarkMode ? "bg-slate-800 hover:bg-slate-700" : "bg-white hover:bg-slate-100"
+                  }`}
                 >
                   <i data-lucide="calendar-plus" className="w-4 h-4"></i>
                   <span>Add Holiday</span>
@@ -714,56 +922,74 @@
             
             {/* KPI STAT CARDS */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-              <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total in {filterCountry}</div>
-                <div className="text-2xl sm:text-3xl font-black text-white mt-1">{totalStaff}</div>
-                <div className="text-[11px] text-slate-500 mt-1">Active Roster Agents</div>
+              <div className={`border rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-sm ${
+                isDarkMode ? "bg-slate-900/70 border-slate-800" : "bg-white border-slate-200 shadow-slate-100"
+              }`}>
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total in {filterCountry}</div>
+                <div className={`text-2xl sm:text-3xl font-black mt-1 ${isDarkMode ? "text-white" : "text-slate-900"}`}>{totalStaff}</div>
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Active Roster Agents</div>
               </div>
 
-              <div className="bg-slate-900/70 border border-amber-500/30 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-md shadow-amber-950/20">
-                <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+              <div className={`border rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-md ${
+                isDarkMode ? "bg-slate-900/70 border-amber-500/30 shadow-amber-950/20" : "bg-amber-50/70 border-amber-300 shadow-amber-100"
+              }`}>
+                <div className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center justify-between">
                   Required to Work
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-amber-400 mt-1">{requiredCount}</div>
-                <div className="text-[11px] text-amber-400/70 mt-1">
+                <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-1">{requiredCount}</div>
+                <div className="text-[11px] text-amber-700/80 dark:text-amber-400/70 mt-1">
                   {totalStaff ? ((requiredCount / totalStaff) * 100).toFixed(0) : 0}% Active Coverage
                 </div>
               </div>
 
-              <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Not Required / Off</div>
-                <div className="text-2xl sm:text-3xl font-black text-slate-300 mt-1">{notRequiredCount}</div>
-                <div className="text-[11px] text-slate-500 mt-1">Exempt / Rested</div>
+              <div className={`border rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-sm ${
+                isDarkMode ? "bg-slate-900/70 border-slate-800" : "bg-white border-slate-200 shadow-slate-100"
+              }`}>
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Not Required / Off</div>
+                <div className={`text-2xl sm:text-3xl font-black mt-1 ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>{notRequiredCount}</div>
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Exempt / Rested</div>
               </div>
 
-              <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
-                <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Shift Completed</div>
-                <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">{completedCount}</div>
-                <div className="text-[11px] text-slate-500 mt-1">Full shift recorded</div>
+              <div className={`border rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-sm ${
+                isDarkMode ? "bg-slate-900/70 border-slate-800" : "bg-white border-slate-200 shadow-slate-100"
+              }`}>
+                <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Shift Completed</div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{completedCount}</div>
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Full shift recorded</div>
               </div>
 
-              <div className="bg-slate-900/70 border border-rose-500/20 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
-                <div className="text-xs font-bold text-rose-400 uppercase tracking-wider">Exceptions</div>
-                <div className="text-2xl sm:text-3xl font-black text-rose-400 mt-1">{exceptionsCount}</div>
-                <div className="text-[11px] text-slate-500 mt-1">Late In or Early Out</div>
+              <div className={`border rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-sm ${
+                isDarkMode ? "bg-slate-900/70 border-rose-500/20" : "bg-white border-rose-200 shadow-slate-100"
+              }`}>
+                <div className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Exceptions</div>
+                <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 mt-1">{exceptionsCount}</div>
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Late In or Early Out</div>
               </div>
             </div>
 
             {/* SECCIÓN DE FILTROS */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+            <div className={`border rounded-2xl p-4 sm:p-5 shadow-xl space-y-4 ${
+              isDarkMode ? "bg-slate-900/80 border-slate-800" : "bg-white border-slate-200"
+            }`}>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 
                 {/* Selector de País con Contraseña */}
-                <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2">
-                  <label className="text-[11px] font-black text-amber-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <div className={`border rounded-xl p-2 ${
+                  isDarkMode ? "bg-amber-500/10 border-amber-500/40" : "bg-amber-50/70 border-amber-300"
+                }`}>
+                  <label className="text-[11px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     <span>Active Country</span>
-                    <i data-lucide="shield-check" className="w-3.5 h-3.5 text-amber-400"></i>
+                    <i data-lucide="shield-check" className="w-3.5 h-3.5 text-amber-500"></i>
                   </label>
                   <select
                     value={filterCountry}
                     onChange={handleCountrySelectChange}
-                    className="w-full bg-slate-950 border border-amber-500/50 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 font-bold focus:outline-none cursor-pointer"
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none cursor-pointer border ${
+                      isDarkMode 
+                        ? "bg-slate-950 border-amber-500/50 text-amber-300" 
+                        : "bg-white border-amber-400 text-amber-700"
+                    }`}
                   >
                     {COUNTRY_LIST.map(c => (
                       <option key={c} value={c} className="bg-slate-900 text-white font-medium">
@@ -775,70 +1001,88 @@
 
                 {/* Search */}
                 <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Search Agent</label>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 block">Search Agent</label>
                   <div className="relative">
                     <input
                       type="text"
                       placeholder="Name, supervisor..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all"
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none transition-all ${
+                        isDarkMode 
+                          ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white placeholder-slate-500" 
+                          : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900 placeholder-slate-400"
+                      }`}
                     />
                     {searchTerm && (
-                      <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-2 text-slate-500 hover:text-white">✕</button>
+                      <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>
                     )}
                   </div>
                 </div>
 
                 {/* Team Filter */}
                 <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Team</label>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 block">Team</label>
                   <select
                     value={filterTeam}
                     onChange={(e) => setFilterTeam(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                    className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                      isDarkMode 
+                        ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" 
+                        : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-800"
+                    }`}
                   >
                     {teams.map(t => (
-                      <option key={t} value={t}>{t === "ALL" ? "All Teams" : t}</option>
+                      <option key={t} value={t} className="bg-slate-900 text-white">{t === "ALL" ? "All Teams" : t}</option>
                     ))}
                   </select>
                 </div>
 
                 {/* Supervisor Filter */}
                 <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Supervisor</label>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 block">Supervisor</label>
                   <select
                     value={filterSupervisor}
                     onChange={(e) => setFilterSupervisor(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                    className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                      isDarkMode 
+                        ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" 
+                        : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-800"
+                    }`}
                   >
                     {supervisors.map(s => (
-                      <option key={s} value={s}>{s === "ALL" ? "All Supervisors" : s}</option>
+                      <option key={s} value={s} className="bg-slate-900 text-white">{s === "ALL" ? "All Supervisors" : s}</option>
                     ))}
                   </select>
                 </div>
 
                 {/* Status / Comment Filter */}
                 <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Status Comment</label>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 block">Status Comment</label>
                   <select
                     value={filterComment}
                     onChange={(e) => setFilterComment(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                    className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                      isDarkMode 
+                        ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" 
+                        : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-800"
+                    }`}
                   >
-                    <option value="ALL">All Comments</option>
-                    <option value="Shift Completed">Shift Completed</option>
-                    <option value="Early Out at">Early Out at</option>
-                    <option value="Late In at">Late In at</option>
-                    <option value="Not Required to Come">Not Required to Come</option>
+                    <option value="ALL" className="bg-slate-900 text-white">All Comments</option>
+                    <option value="Shift Completed" className="bg-slate-900 text-white">Shift Completed</option>
+                    <option value="Early Out at" className="bg-slate-900 text-white">Early Out at</option>
+                    <option value="Late In at" className="bg-slate-900 text-white">Late In at</option>
+                    <option value="Not Required to Come" className="bg-slate-900 text-white">Not Required to Come</option>
                   </select>
                 </div>
 
               </div>
 
-              {/* BARRA: ADD AGENT & BULK */}
-              <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
+              {/* BARRA: ADD AGENT & CALCULATE AVAILABILITY & BULK */}
+              <div className={`pt-3 border-t flex flex-wrap items-center justify-between gap-3 ${
+                isDarkMode ? "border-slate-800" : "border-slate-200"
+              }`}>
+                <div className="flex items-center flex-wrap gap-2.5">
                   <button
                     onClick={() => triggerMgmtProtectedAction("ADD_MODAL", null)}
                     className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
@@ -847,21 +1091,41 @@
                     <span>Add Agent</span>
                   </button>
 
-                  <span className="text-xs text-slate-400 font-medium">
-                    Showing <span className="font-bold text-amber-400">{filteredStaff.length}</span> of {countryStaffAll.length} agents in <span className="text-white font-bold">{filterCountry}</span>
+                  {/* NUEVO BOTÓN: CALCULATE AVAILABILITY */}
+                  <button
+                    onClick={() => {
+                      runAvailabilityOptimization(targetPercentage);
+                      setIsAvailabilityModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-indigo-600/25 active:scale-95 transition-all"
+                  >
+                    <i data-lucide="calculator" className="w-4 h-4"></i>
+                    <span>Calculate Availability</span>
+                  </button>
+
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium ml-1">
+                    Showing <span className="font-bold text-amber-600 dark:text-amber-400">{filteredStaff.length}</span> of {countryStaffAll.length} agents in <span className="font-bold text-slate-900 dark:text-white">{filterCountry}</span>
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleBulkRequirement(true)}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-amber-300 border border-slate-700 transition-colors"
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                      isDarkMode 
+                        ? "bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700" 
+                        : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                    }`}
                   >
                     Mark Filtered Required
                   </button>
                   <button
                     onClick={() => handleBulkRequirement(false)}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-400 border border-slate-700 transition-colors"
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                      isDarkMode 
+                        ? "bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700" 
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200"
+                    }`}
                   >
                     Mark Filtered Not Required
                   </button>
@@ -883,24 +1147,30 @@
             </div>
 
             {/* TABLA PRINCIPAL */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+            <div className={`border rounded-2xl shadow-2xl overflow-hidden ${
+              isDarkMode ? "bg-slate-900/80 border-slate-800" : "bg-white border-slate-200"
+            }`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-amber-500/30 text-amber-400 font-bold tracking-wider uppercase text-[11px]">
+                    <tr className={`border-b font-bold tracking-wider uppercase text-[11px] ${
+                      isDarkMode 
+                        ? "bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-amber-500/30 text-amber-400" 
+                        : "bg-slate-100 border-amber-500/40 text-amber-700"
+                    }`}>
                       <th className="py-3 px-3 w-12 text-center">#</th>
                       <th className="py-3 px-4">Name</th>
                       <th className="py-3 px-3">Country</th>
                       <th className="py-3 px-3">Team</th>
                       <th className="py-3 px-3">Supervisor</th>
-                      <th className="py-3 px-3 text-center bg-slate-800/40 text-amber-300">Check In</th>
-                      <th className="py-3 px-3 text-center bg-slate-800/40 text-amber-300">Check Out</th>
+                      <th className={`py-3 px-3 text-center ${isDarkMode ? "bg-slate-800/40 text-amber-300" : "bg-amber-100/60 text-amber-800"}`}>Check In</th>
+                      <th className={`py-3 px-3 text-center ${isDarkMode ? "bg-slate-800/40 text-amber-300" : "bg-amber-100/60 text-amber-800"}`}>Check Out</th>
                       <th className="py-3 px-3 text-center">Required to Work?</th>
                       <th className="py-3 px-4">Status & Reason/Time</th>
                       <th className="py-3 px-3 text-center w-24">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/70 font-medium">
+                  <tbody className={`divide-y font-medium ${isDarkMode ? "divide-slate-800/70" : "divide-slate-200"}`}>
                     {filteredStaff.length === 0 ? (
                       <tr>
                         <td colSpan="10" className="py-12 text-center text-slate-500 italic">
@@ -913,36 +1183,44 @@
                         return (
                           <tr
                             key={agent.id}
-                            className={`transition-colors hover:bg-slate-800/50 ${
-                              isExempt ? "bg-slate-950/40 opacity-75" : "bg-transparent"
+                            className={`transition-colors ${
+                              isDarkMode ? "hover:bg-slate-800/50" : "hover:bg-slate-50"
+                            } ${
+                              isExempt 
+                                ? (isDarkMode ? "bg-slate-950/40 opacity-75" : "bg-slate-100/60 opacity-75") 
+                                : "bg-transparent"
                             }`}
                           >
-                            <td className="py-3 px-3 text-center text-slate-500 font-mono text-[11px]">
+                            <td className="py-3 px-3 text-center text-slate-400 font-mono text-[11px]">
                               {index + 1}
                             </td>
 
-                            <td className="py-3 px-4 text-white font-bold whitespace-nowrap">
+                            <td className={`py-3 px-4 font-bold whitespace-nowrap ${isDarkMode ? "text-white" : "text-slate-900"}`}>
                               {agent.name}
                             </td>
 
                             <td className="py-3 px-3 whitespace-nowrap">
-                              <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase border bg-amber-500/10 text-amber-400 border-amber-500/30">
+                              <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase border bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/30">
                                 {agent.country}
                               </span>
                             </td>
 
-                            <td className="py-3 px-3 text-slate-300 font-medium whitespace-nowrap">
+                            <td className={`py-3 px-3 font-medium whitespace-nowrap ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>
                               {agent.team}
                             </td>
 
-                            <td className="py-3 px-3 text-slate-300 whitespace-nowrap">
+                            <td className={`py-3 px-3 whitespace-nowrap ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>
                               {agent.supervisor}
                             </td>
 
-                            <td className="py-3 px-3 text-center font-mono text-xs text-amber-300 bg-slate-900/40 whitespace-nowrap">
+                            <td className={`py-3 px-3 text-center font-mono text-xs whitespace-nowrap ${
+                              isDarkMode ? "text-amber-300 bg-slate-900/40" : "text-amber-700 bg-amber-50/50"
+                            }`}>
                               {agent.checkIn || "—"}
                             </td>
-                            <td className="py-3 px-3 text-center font-mono text-xs text-amber-300 bg-slate-900/40 whitespace-nowrap">
+                            <td className={`py-3 px-3 text-center font-mono text-xs whitespace-nowrap ${
+                              isDarkMode ? "text-amber-300 bg-slate-900/40" : "text-amber-700 bg-amber-50/50"
+                            }`}>
                               {agent.checkOut || "—"}
                             </td>
 
@@ -952,7 +1230,7 @@
                                 className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all ${
                                   agent.isRequired
                                     ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md shadow-amber-500/20"
-                                    : "bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200"
+                                    : (isDarkMode ? "bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200" : "bg-slate-200 text-slate-600 border-slate-300")
                                 }`}
                               >
                                 {agent.isRequired ? "YES • REQUIRED" : "NO • OFF"}
@@ -966,23 +1244,27 @@
                                   onChange={(e) => updateAgentField(agent.id, "commentType", e.target.value)}
                                   className={`rounded-lg px-2.5 py-1 text-xs font-semibold border focus:outline-none ${
                                     agent.commentType === "Shift Completed"
-                                      ? "bg-emerald-950/70 border-emerald-700/60 text-emerald-300"
+                                      ? (isDarkMode ? "bg-emerald-950/70 border-emerald-700/60 text-emerald-300" : "bg-emerald-50 border-emerald-300 text-emerald-800")
                                       : agent.commentType === "Early Out at" || agent.commentType === "Late In at"
-                                      ? "bg-amber-950/80 border-amber-600/70 text-amber-300"
-                                      : "bg-slate-800 border-slate-700 text-slate-300"
+                                      ? (isDarkMode ? "bg-amber-950/80 border-amber-600/70 text-amber-300" : "bg-amber-50 border-amber-300 text-amber-800")
+                                      : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-100 border-slate-300 text-slate-700")
                                   }`}
                                 >
-                                  <option value="Shift Completed">Shift Completed</option>
-                                  <option value="Early Out at">Early Out at</option>
-                                  <option value="Late In at">Late In at</option>
-                                  <option value="Not Required to Come">Not Required to Come</option>
+                                  <option value="Shift Completed" className="bg-slate-900 text-white">Shift Completed</option>
+                                  <option value="Early Out at" className="bg-slate-900 text-white">Early Out at</option>
+                                  <option value="Late In at" className="bg-slate-900 text-white">Late In at</option>
+                                  <option value="Not Required to Come" className="bg-slate-900 text-white">Not Required to Come</option>
                                 </select>
 
                                 {agent.commentType === "Not Required to Come" && (
                                   <select
                                     value={agent.commentDetail || "Holiday Rested"}
                                     onChange={(e) => updateAgentField(agent.id, "commentDetail", e.target.value)}
-                                    className="bg-slate-950 border border-slate-600 rounded-lg px-2 py-1 text-xs text-amber-400 font-semibold focus:outline-none focus:border-amber-400"
+                                    className={`rounded-lg px-2 py-1 text-xs font-semibold border focus:outline-none ${
+                                      isDarkMode 
+                                        ? "bg-slate-950 border-slate-600 text-amber-400 focus:border-amber-400" 
+                                        : "bg-white border-slate-300 text-amber-700 focus:border-amber-500"
+                                    }`}
                                   >
                                     {NOT_REQUIRED_REASONS.map(reason => (
                                       <option key={reason} value={reason} className="bg-slate-900 text-white">
@@ -998,7 +1280,11 @@
                                     placeholder="e.g. 2:30 PM"
                                     value={agent.commentDetail || ""}
                                     onChange={(e) => updateAgentField(agent.id, "commentDetail", e.target.value)}
-                                    className="w-24 bg-slate-950 border border-amber-500 rounded px-2 py-0.5 text-xs text-amber-300 font-mono focus:outline-none"
+                                    className={`w-24 border rounded px-2 py-0.5 text-xs font-mono focus:outline-none ${
+                                      isDarkMode 
+                                        ? "bg-slate-950 border-amber-500 text-amber-300" 
+                                        : "bg-white border-amber-400 text-amber-800"
+                                    }`}
                                   />
                                 )}
                               </div>
@@ -1009,14 +1295,22 @@
                                 <button
                                   onClick={() => triggerMgmtProtectedAction("EDIT_MODAL", agent)}
                                   title="Edit Agent Information"
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300 transition-colors"
+                                  className={`p-1.5 rounded-lg transition-colors ${
+                                    isDarkMode 
+                                      ? "bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300" 
+                                      : "bg-slate-200 hover:bg-amber-500 hover:text-slate-950 text-slate-700"
+                                  }`}
                                 >
                                   <i data-lucide="edit-3" className="w-3.5 h-3.5"></i>
                                 </button>
                                 <button
                                   onClick={() => triggerMgmtProtectedAction("DELETE_AGENT", agent)}
                                   title="Delete Agent from Roster"
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600 hover:text-white text-slate-400 transition-colors"
+                                  className={`p-1.5 rounded-lg transition-colors ${
+                                    isDarkMode 
+                                      ? "bg-slate-800 hover:bg-rose-600 hover:text-white text-slate-400" 
+                                      : "bg-slate-200 hover:bg-rose-600 hover:text-white text-slate-600"
+                                  }`}
                                 >
                                   <i data-lucide="trash-2" className="w-3.5 h-3.5"></i>
                                 </button>
@@ -1033,21 +1327,196 @@
           </main>
 
           {/* FOOTER */}
-          <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
+          <footer className={`border-t py-4 px-6 text-center text-xs ${
+            isDarkMode ? "border-slate-800/80 text-slate-500" : "border-slate-200 text-slate-400"
+          }`}>
             OFFICIAL HOLIDAY REPORT &bull; Enterprise Operations 2026 &bull; Secure Multi-Country Roster Management
           </footer>
+
+          {/* BOTÓN FLOTANTE EN ESQUINA INFERIOR IZQUIERDA (LIGHT / DARK THEME TOGGLE) */}
+          <div className="fixed bottom-5 left-5 z-40">
+            <button
+              onClick={() => setIsDarkMode(prev => !prev)}
+              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              className={`p-3 rounded-2xl shadow-2xl flex items-center justify-center border transition-all active:scale-90 ${
+                isDarkMode 
+                  ? "bg-slate-900 hover:bg-slate-800 text-amber-400 border-amber-500/40 shadow-amber-950/40" 
+                  : "bg-white hover:bg-slate-100 text-amber-600 border-amber-300 shadow-slate-300"
+              }`}
+            >
+              <i data-lucide={isDarkMode ? "sun" : "moon"} className="w-5 h-5 stroke-[2.2]"></i>
+            </button>
+          </div>
+
+          {/* MODAL: CALCULATE AVAILABILITY */}
+          {isAvailabilityModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`border rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto ${
+                isDarkMode ? "bg-slate-900 border-indigo-500/50" : "bg-white border-indigo-200 text-slate-900"
+              }`}>
+                <div className="flex items-center justify-between border-b pb-3 mb-4 border-slate-700/60">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                      <i data-lucide="cpu" className="w-5 h-5"></i>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black uppercase tracking-wider text-indigo-400">
+                        Workforce Availability Engine
+                      </h3>
+                      <p className="text-xs text-slate-400">Operations Window: Phones (6 AM - 7 PM) &bull; Cases (24/7)</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsAvailabilityModalOpen(false)} className="text-slate-400 hover:text-white text-base">✕</button>
+                </div>
+
+                {/* SELECTOR DE PORCENTAJE (50% a 100% de 10 en 10) */}
+                <div className={`p-4 rounded-xl border mb-5 ${
+                  isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <label className="text-xs font-bold uppercase tracking-wider block mb-2 text-slate-400">
+                    Select Target Coverage Percentage:
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[50, 60, 70, 80, 90, 100].map(pct => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          setTargetPercentage(pct);
+                          runAvailabilityOptimization(pct);
+                        }}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                          targetPercentage === pct
+                            ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105"
+                            : (isDarkMode ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-200 hover:bg-slate-300 text-slate-700")
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* RESULTADOS DEL CÁLCULO INTELIGENTE */}
+                {availabilityResult && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className={`p-3 rounded-xl border text-center ${
+                        isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200"
+                      }`}>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Active</span>
+                        <span className="text-xl font-black">{availabilityResult.total}</span>
+                      </div>
+                      <div className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-center">
+                        <span className="text-[10px] uppercase font-bold text-indigo-400 block">Must Come</span>
+                        <span className="text-xl font-black text-indigo-400">{availabilityResult.recommendedCount}</span>
+                      </div>
+                      <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-center">
+                        <span className="text-[10px] uppercase font-bold text-emerald-400 block">Holiday Rested</span>
+                        <span className="text-xl font-black text-emerald-400">{availabilityResult.offCount}</span>
+                      </div>
+                      <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-center">
+                        <span className="text-[10px] uppercase font-bold text-amber-400 block">Coverage</span>
+                        <span className="text-xl font-black text-amber-400">{availabilityResult.percentage}%</span>
+                      </div>
+                    </div>
+
+                    {/* Operational Compliance Check */}
+                    <div className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+                      isDarkMode ? "bg-slate-950/70 border-slate-800" : "bg-slate-50 border-slate-200"
+                    }`}>
+                      <div className="font-bold uppercase tracking-wider text-[11px] text-slate-300 flex items-center gap-1.5">
+                        <i data-lucide="shield" className="w-3.5 h-3.5 text-indigo-400"></i>
+                        Operational Constraints Audit:
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span>Phones Operation Window (6:00 AM - 7:00 PM):</span>
+                        <span className={availabilityResult.covers6AM && availabilityResult.covers7PM ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                          {availabilityResult.covers6AM && availabilityResult.covers7PM ? "✓ Fully Covered" : "⚠ Partial Hours Covered"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span>Cases Department (24/7 Service Staggering):</span>
+                        <span className="text-emerald-400 font-bold">
+                          ✓ {availabilityResult.caseAgentsCount} Agents Staggered
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span>Active Management on Duty:</span>
+                        <span className="text-indigo-400 font-bold">{availabilityResult.managementCount} Assigned</span>
+                      </div>
+                    </div>
+
+                    {/* Schedule distribution table */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        Recommended Shift Schedule Breakdown:
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        {Object.entries(availabilityResult.scheduleBreakdown).map(([shift, count]) => (
+                          <div key={shift} className={`p-2 rounded-lg border flex items-center justify-between ${
+                            isDarkMode ? "bg-slate-950 border-slate-800 text-slate-300" : "bg-slate-100 border-slate-200 text-slate-700"
+                          }`}>
+                            <span className="font-mono text-[11px]">{shift}</span>
+                            <span className="font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Preview list */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Assigned Agents Preview:
+                      </h4>
+                      <div className={`max-h-40 overflow-y-auto rounded-xl border p-2 text-xs divide-y ${
+                        isDarkMode ? "bg-slate-950 border-slate-800 divide-slate-800" : "bg-slate-50 border-slate-200 divide-slate-200"
+                      }`}>
+                        {availabilityResult.selectedAgents.map(a => (
+                          <div key={a.id} className="py-1 px-1 flex items-center justify-between">
+                            <span className="font-semibold text-slate-200">{a.name} <span className="text-[10px] text-slate-500 font-normal">({a.team})</span></span>
+                            <span className="font-mono text-amber-400 text-[11px]">{a.checkIn} - {a.checkOut}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2.5 pt-4 mt-4 border-t border-slate-700/60">
+                  <button
+                    type="button"
+                    onClick={() => setIsAvailabilityModalOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplyRecommendation}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white transition-colors shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-1.5"
+                  >
+                    <i data-lucide="check" className="w-4 h-4"></i>
+                    <span>Apply Plan to Roster ({targetPercentage}%)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* MODAL: AGREGAR NUEVO HOLIDAY */}
           {isNewHolidayModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto mb-3">
+              <div className={`border rounded-2xl max-w-sm w-full p-6 shadow-2xl relative ${
+                isDarkMode ? "bg-slate-900 border-amber-500/50" : "bg-white border-amber-400 text-slate-900"
+              }`}>
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 dark:text-amber-400 mx-auto mb-3">
                   <i data-lucide="calendar-plus" className="w-6 h-6"></i>
                 </div>
-                <h3 className="text-center text-base font-bold text-white uppercase tracking-wider">
+                <h3 className={`text-center text-base font-bold uppercase tracking-wider ${isDarkMode ? "text-white" : "text-slate-900"}`}>
                   Add New Holiday
                 </h3>
-                <p className="text-center text-xs text-slate-400 mt-1">
+                <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Create a new holiday to manage its attendance independently.
                 </p>
 
@@ -1061,7 +1530,9 @@
                       value={newHolidayName}
                       onChange={(e) => setNewHolidayName(e.target.value)}
                       autoFocus
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none"
+                      className={`w-full border rounded-xl px-3 py-2 focus:outline-none ${
+                        isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                      }`}
                     />
                   </div>
 
@@ -1072,7 +1543,9 @@
                       placeholder="e.g. Apr 3, 2026"
                       value={newHolidayDate}
                       onChange={(e) => setNewHolidayDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none"
+                      className={`w-full border rounded-xl px-3 py-2 focus:outline-none ${
+                        isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                      }`}
                     />
                   </div>
 
@@ -1099,15 +1572,17 @@
           {/* MODAL: CAMBIO DE PAÍS */}
           {isCountryAuthOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto mb-3">
+              <div className={`border rounded-2xl max-w-sm w-full p-6 shadow-2xl relative ${
+                isDarkMode ? "bg-slate-900 border-amber-500/50" : "bg-white border-amber-400 text-slate-900"
+              }`}>
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 dark:text-amber-400 mx-auto mb-3">
                   <i data-lucide="key" className="w-6 h-6"></i>
                 </div>
-                <h3 className="text-center text-base font-bold text-white uppercase tracking-wider">
+                <h3 className={`text-center text-base font-bold uppercase tracking-wider ${isDarkMode ? "text-white" : "text-slate-900"}`}>
                   Access Authorization
                 </h3>
-                <p className="text-center text-xs text-slate-400 mt-1">
-                  Enter password to access <span className="font-bold text-amber-400">{targetCountry}</span> team roster.
+                <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Enter password to access <span className="font-bold text-amber-500 dark:text-amber-400">{targetCountry}</span> team roster.
                 </p>
 
                 <form onSubmit={handleVerifyCountryPassword} className="mt-4 space-y-3">
@@ -1121,10 +1596,12 @@
                         setCountryAuthError("");
                       }}
                       autoFocus
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none font-mono ${
+                        isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                      }`}
                     />
                     {countryAuthError && (
-                      <p className="text-rose-400 text-[11px] font-semibold mt-1.5 text-center">
+                      <p className="text-rose-500 text-[11px] font-semibold mt-1.5 text-center">
                         {countryAuthError}
                       </p>
                     )}
@@ -1153,14 +1630,16 @@
           {/* MODAL: AUTH MANAGEMENT */}
           {isMgmtAuthModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto mb-3">
+              <div className={`border rounded-2xl max-w-sm w-full p-6 shadow-2xl relative ${
+                isDarkMode ? "bg-slate-900 border-amber-500/40" : "bg-white border-amber-400 text-slate-900"
+              }`}>
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 dark:text-amber-400 mx-auto mb-3">
                   <i data-lucide="lock" className="w-6 h-6"></i>
                 </div>
-                <h3 className="text-center text-base font-bold text-white uppercase tracking-wider">
+                <h3 className={`text-center text-base font-bold uppercase tracking-wider ${isDarkMode ? "text-white" : "text-slate-900"}`}>
                   Management Authentication
                 </h3>
-                <p className="text-center text-xs text-slate-400 mt-1">
+                <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Enter authorized credentials to modify agent roster data.
                 </p>
 
@@ -1175,10 +1654,12 @@
                         setMgmtAuthError("");
                       }}
                       autoFocus
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none font-mono ${
+                        isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                      }`}
                     />
                     {mgmtAuthError && (
-                      <p className="text-rose-400 text-[11px] font-semibold mt-1.5 text-center">
+                      <p className="text-rose-500 text-[11px] font-semibold mt-1.5 text-center">
                         {mgmtAuthError}
                       </p>
                     )}
@@ -1207,9 +1688,11 @@
           {/* MODAL: ADD / EDIT AGENT */}
           {isAgentModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                  <h3 className="text-base font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+              <div className={`border rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto ${
+                isDarkMode ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300 text-slate-900"
+              }`}>
+                <div className={`flex items-center justify-between border-b pb-3 mb-4 ${isDarkMode ? "border-slate-800" : "border-slate-200"}`}>
+                  <h3 className="text-base font-bold text-amber-500 dark:text-amber-400 uppercase tracking-wider flex items-center gap-2">
                     <i data-lucide={modalMode === "add" ? "user-plus" : "user-check"} className="w-4 h-4"></i>
                     {modalMode === "add" ? "Add New Agent" : "Edit Agent Details"}
                   </h3>
@@ -1224,7 +1707,9 @@
                       required
                       value={currentAgentData.name}
                       onChange={(e) => setCurrentAgentData({ ...currentAgentData, name: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                      className={`w-full border rounded-xl px-3 py-2 focus:outline-none ${
+                        isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                      }`}
                     />
                   </div>
 
@@ -1233,10 +1718,12 @@
                     <select
                       value={currentAgentData.country}
                       onChange={(e) => setCurrentAgentData({ ...currentAgentData, country: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                      className={`w-full border rounded-xl px-3 py-2 focus:outline-none ${
+                        isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                      }`}
                     >
                       {COUNTRY_LIST.map(c => (
-                        <option key={c} value={c}>{c}</option>
+                        <option key={c} value={c} className="bg-slate-900 text-white">{c}</option>
                       ))}
                     </select>
                   </div>
@@ -1248,7 +1735,9 @@
                         type="text"
                         value={currentAgentData.team}
                         onChange={(e) => setCurrentAgentData({ ...currentAgentData, team: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                        className={`w-full border rounded-xl px-3 py-2 focus:outline-none ${
+                          isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                        }`}
                       />
                     </div>
 
@@ -1258,7 +1747,9 @@
                         type="text"
                         value={currentAgentData.supervisor}
                         onChange={(e) => setCurrentAgentData({ ...currentAgentData, supervisor: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                        className={`w-full border rounded-xl px-3 py-2 focus:outline-none ${
+                          isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                        }`}
                       />
                     </div>
                   </div>
@@ -1270,7 +1761,9 @@
                         type="text"
                         value={currentAgentData.checkIn}
                         onChange={(e) => setCurrentAgentData({ ...currentAgentData, checkIn: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                        className={`w-full border rounded-xl px-3 py-2 font-mono focus:outline-none ${
+                          isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                        }`}
                       />
                     </div>
 
@@ -1280,27 +1773,31 @@
                         type="text"
                         value={currentAgentData.checkOut}
                         onChange={(e) => setCurrentAgentData({ ...currentAgentData, checkOut: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                        className={`w-full border rounded-xl px-3 py-2 font-mono focus:outline-none ${
+                          isDarkMode ? "bg-slate-950 border-slate-700 focus:border-amber-400 text-white" : "bg-slate-50 border-slate-300 focus:border-amber-500 text-slate-900"
+                        }`}
                       />
                     </div>
                   </div>
 
-                  <div className="pt-2 flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-slate-300 font-semibold">Required to Work This Holiday?</span>
+                  <div className={`pt-2 flex items-center justify-between p-3 rounded-xl border ${
+                    isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200"
+                  }`}>
+                    <span className="font-semibold">Required to Work This Holiday?</span>
                     <button
                       type="button"
                       onClick={() => setCurrentAgentData({ ...currentAgentData, isRequired: !currentAgentData.isRequired })}
                       className={`px-3 py-1 rounded-full text-[11px] font-bold border uppercase transition-colors ${
                         currentAgentData.isRequired
                           ? "bg-amber-400 text-slate-950 border-amber-300"
-                          : "bg-slate-800 text-slate-400 border-slate-700"
+                          : (isDarkMode ? "bg-slate-800 text-slate-400 border-slate-700" : "bg-slate-200 text-slate-600 border-slate-300")
                       }`}
                     >
                       {currentAgentData.isRequired ? "YES" : "NO"}
                     </button>
                   </div>
 
-                  <div className="flex gap-2 pt-3 border-t border-slate-800">
+                  <div className={`flex gap-2 pt-3 border-t ${isDarkMode ? "border-slate-800" : "border-slate-200"}`}>
                     <button
                       type="button"
                       onClick={() => setIsAgentModalOpen(false)}
