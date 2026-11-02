@@ -452,7 +452,6 @@
       const [targetPercentage, setTargetPercentage] = useState(80);
       const [availabilityResult, setAvailabilityResult] = useState(null);
 
-      // Manejo de cambio de país (incluye protección con Management Password para ALL COUNTRIES)
       const handleCountrySelectChange = (e) => {
         const selected = e.target.value;
         if (selected === filterCountry) return;
@@ -527,7 +526,7 @@
         });
       }, [staff, filterCountry, searchTerm, filterTeam, filterSupervisor, filterRequirement, filterComment]);
 
-      // MOTOR DE DISPONIBILIDAD
+      // MOTOR DE DISPONIBILIDAD REACTIVO
       const runAvailabilityOptimization = (pct = targetPercentage) => {
         const agents = [...countryStaffAll];
         const total = agents.length;
@@ -649,25 +648,6 @@
           covers6AM,
           covers7PM
         });
-      };
-
-      const handleApplyRecommendation = () => {
-        if (!availabilityResult) return;
-        const selIds = availabilityResult.selectedIds;
-
-        setStaff(prev =>
-          prev.map(agent => {
-            if (filterCountry !== "ALL" && agent.country !== filterCountry) return agent;
-            const isReq = selIds.has(agent.id);
-            return {
-              ...agent,
-              isRequired: isReq,
-              commentType: isReq ? "Shift Completed" : "Not Required to Come",
-              commentDetail: isReq ? "" : "Holiday Rested"
-            };
-          })
-        );
-        setIsAvailabilityModalOpen(false);
       };
 
       const triggerMgmtProtectedAction = (actionType, payload) => {
@@ -834,20 +814,21 @@
         filteredStaff,
         isDarkMode,
         isAvailabilityModalOpen,
-        availabilityResult
+        availabilityResult,
+        targetPercentage
       ]);
 
       return (
         <div className={`flex flex-col min-h-screen ${isDarkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-800"}`}>
-          {/* HEADER PRINCIPAL */}
+          {/* HEADER PRINCIPAL: Con márgenes ajustados a 15mm */}
           <header className={`border-b sticky top-0 z-30 shadow-xl backdrop-blur-md transition-colors ${
             isDarkMode 
               ? "border-amber-500/20 bg-slate-900/90 shadow-amber-950/10" 
               : "border-amber-500/30 bg-white/95 shadow-slate-200"
           }`}>
-            <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div className="w-full pl-[15mm] md:pl-[calc(15mm+48px+15mm)] pr-[15mm] py-3.5 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center space-x-3.5">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 text-slate-950 font-black">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 text-slate-950 font-black shrink-0">
                   <i data-lucide="calendar" className="w-6 h-6 stroke-[2.5]"></i>
                 </div>
                 <div>
@@ -920,8 +901,8 @@
             </div>
           )}
 
-          {/* MAIN CONTAINER */}
-          <main className="flex-1 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {/* MAIN CONTAINER: Con bordes extendidos a 15mm de la derecha y 15mm antes del icono de tema */}
+          <main className="flex-1 w-full pl-[15mm] md:pl-[calc(15mm+48px+15mm)] pr-[15mm] py-6 space-y-6">
             
             {/* KPI STAT CARDS */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
@@ -1340,12 +1321,12 @@
             OFFICIAL HOLIDAY REPORT &bull; Enterprise Operations 2026 &bull; Secure Multi-Country Roster Management
           </footer>
 
-          {/* BOTÓN FLOTANTE EN ESQUINA INFERIOR IZQUIERDA (THEME SWITCHER) */}
-          <div className="fixed bottom-5 left-5 z-40">
+          {/* BOTÓN FLOTANTE EN ESQUINA INFERIOR IZQUIERDA A 15mm EXACTOS DEL BORDE */}
+          <div className="fixed bottom-[15mm] left-[15mm] z-40">
             <button
               onClick={() => setIsDarkMode(prev => !prev)}
               title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              className={`p-3 rounded-2xl shadow-2xl flex items-center justify-center border transition-all active:scale-90 ${
+              className={`w-12 h-12 rounded-2xl shadow-2xl flex items-center justify-center border transition-all active:scale-90 ${
                 isDarkMode 
                   ? "bg-slate-900 hover:bg-slate-800 text-amber-400 border-amber-500/40 shadow-amber-950/40" 
                   : "bg-white hover:bg-slate-100 text-amber-600 border-amber-300 shadow-slate-300"
@@ -1355,7 +1336,7 @@
             </button>
           </div>
 
-          {/* MODAL: CALCULATE AVAILABILITY (Sin la lista de assigned agents preview) */}
+          {/* MODAL: CALCULATE AVAILABILITY (Sin botones de confirmación, 100% dinámico) */}
           {isAvailabilityModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className={`border rounded-2xl max-w-xl w-full p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto ${
@@ -1373,7 +1354,12 @@
                       <p className="text-xs text-slate-400">Operations Window: Phones (6 AM - 7 PM) &bull; Cases (24/7)</p>
                     </div>
                   </div>
-                  <button onClick={() => setIsAvailabilityModalOpen(false)} className="text-slate-400 hover:text-white text-base">✕</button>
+                  <button 
+                    onClick={() => setIsAvailabilityModalOpen(false)} 
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-base font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
 
                 {/* SELECTOR DE PORCENTAJE (50% a 100% de 10 en 10) */}
@@ -1404,7 +1390,7 @@
                   </div>
                 </div>
 
-                {/* RESULTADOS DEL CÁLCULO INTELIGENTE */}
+                {/* RESULTADOS REACTIVOS DEL CÁLCULO */}
                 {availabilityResult && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1415,11 +1401,11 @@
                         <span className="text-xl font-black">{availabilityResult.total}</span>
                       </div>
                       <div className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-center">
-                        <span className="text-[10px] uppercase font-bold text-indigo-400 block">Must Come</span>
+                        <span className="text-[10px] uppercase font-bold text-indigo-400 block">Recommended</span>
                         <span className="text-xl font-black text-indigo-400">{availabilityResult.recommendedCount}</span>
                       </div>
                       <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-center">
-                        <span className="text-[10px] uppercase font-bold text-emerald-400 block">Holiday Rested</span>
+                        <span className="text-[10px] uppercase font-bold text-emerald-400 block">Rested / Off</span>
                         <span className="text-xl font-black text-emerald-400">{availabilityResult.offCount}</span>
                       </div>
                       <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-center">
@@ -1443,7 +1429,7 @@
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
-                        <span>Cases Department (24/7 Service Staggering):</span>
+                        <span>Cases Department (24/7 Staggering):</span>
                         <span className="text-emerald-400 font-bold">
                           ✓ {availabilityResult.caseAgentsCount} Agents Staggered
                         </span>
@@ -1472,24 +1458,6 @@
                     </div>
                   </div>
                 )}
-
-                <div className="flex gap-2.5 pt-4 mt-4 border-t border-slate-700/60">
-                  <button
-                    type="button"
-                    onClick={() => setIsAvailabilityModalOpen(false)}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleApplyRecommendation}
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white transition-colors shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-1.5"
-                  >
-                    <i data-lucide="check" className="w-4 h-4"></i>
-                    <span>Apply Plan to Roster ({targetPercentage}%)</span>
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -1617,7 +1585,7 @@
             </div>
           )}
 
-          {/* MODAL: AUTH MANAGEMENT (Utilizado para acciones protegidas y ALL COUNTRIES) */}
+          {/* MODAL: AUTH MANAGEMENT */}
           {isMgmtAuthModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className={`border rounded-2xl max-w-sm w-full p-6 shadow-2xl relative ${
