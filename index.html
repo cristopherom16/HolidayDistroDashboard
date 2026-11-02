@@ -1,7 +1,52 @@
-<script type="text/babel">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OFFICIAL HOLIDAY REPORT</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SheetJS -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #f59e0b;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- MOTOR DE ALMACENAMIENTO ILIMITADO (IndexedDB) ---
+    // --- ALMACENAMIENTO ILIMITADO MEDIANTE INDEXEDDB ---
     const DB_NAME = "HolidayReportsDB";
     const DB_VERSION = 1;
     const STORE_NAME = "app_data";
@@ -9,6 +54,10 @@
     const idb = {
       open() {
         return new Promise((resolve, reject) => {
+          if (!window.indexedDB) {
+            reject(new Error("IndexedDB no soportado"));
+            return;
+          }
           const req = indexedDB.open(DB_NAME, DB_VERSION);
           req.onupgradeneeded = () => {
             const db = req.result;
@@ -21,24 +70,32 @@
         });
       },
       async get(key) {
-        const db = await this.open();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction(STORE_NAME, "readonly");
-          const store = tx.objectStore(STORE_NAME);
-          const req = store.get(key);
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        });
+        try {
+          const db = await this.open();
+          return new Promise((resolve) => {
+            const tx = db.transaction(STORE_NAME, "readonly");
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.get(key);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+          });
+        } catch {
+          return null;
+        }
       },
       async set(key, val) {
-        const db = await this.open();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction(STORE_NAME, "readwrite");
-          const store = tx.objectStore(STORE_NAME);
-          const req = store.put(val, key);
-          req.onsuccess = () => resolve();
-          req.onerror = () => reject(req.error);
-        });
+        try {
+          const db = await this.open();
+          return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, "readwrite");
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.put(val, key);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+          });
+        } catch (e) {
+          console.error("Error guardando en IndexedDB:", e);
+        }
       }
     };
 
@@ -254,37 +311,27 @@
       const [holidaysData, setHolidaysData] = useState({ "labor": INITIAL_ROSTER });
       const [saveNotice, setSaveNotice] = useState(false);
 
-      // Cargar datos desde IndexedDB (o migrar desde localStorage automáticamente)
+      // Cargar datos almacenados en segundo plano
       useEffect(() => {
-        async function loadStoredData() {
+        async function loadStored() {
           try {
-            let list = await idb.get("OFFICIAL_HOLIDAYS_CATALOG");
-            let data = await idb.get("OFFICIAL_HOLIDAY_REPORTS_V4");
-
-            // Si aún no está en IndexedDB, intentar migrar los datos previos de localStorage
-            if (!list) {
-              const oldList = localStorage.getItem("OFFICIAL_HOLIDAYS_CATALOG");
-              if (oldList) {
-                list = JSON.parse(oldList);
-                await idb.set("OFFICIAL_HOLIDAYS_CATALOG", list);
-              }
-            }
-            if (!data) {
-              const oldData = localStorage.getItem("OFFICIAL_HOLIDAY_REPORTS_V4");
-              if (oldData) {
-                data = JSON.parse(oldData);
-                await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", data);
-              }
-            }
-
-            if (list) setHolidaysList(list);
-            if (data) setHolidaysData(data);
+            const list = await idb.get("OFFICIAL_HOLIDAYS_CATALOG");
+            const data = await idb.get("OFFICIAL_HOLIDAY_REPORTS_V4");
+            if (list && Array.isArray(list)) setHolidaysList(list);
+            if (data && typeof data === "object") setHolidaysData(data);
           } catch (e) {
-            console.error("IndexedDB initial load error:", e);
+            console.error("Error al cargar datos:", e);
           }
         }
-        loadStoredData();
+        loadStored();
       }, []);
+
+      // Refrescar iconos Lucide de forma controlada
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, [selectedHolidayId, holidaysList, holidaysData]);
 
       // Modal para nuevo Holiday
       const [isNewHolidayModalOpen, setIsNewHolidayModalOpen] = useState(false);
@@ -300,10 +347,7 @@
           const currentList = prev[selectedHolidayId] || INITIAL_ROSTER;
           const nextList = typeof updater === "function" ? updater(currentList) : updater;
           const updatedState = { ...prev, [selectedHolidayId]: nextList };
-          // Guardar automáticamente sin límite de espacio
-          idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedState).catch(err => {
-            console.error("Auto-save error to IndexedDB:", err);
-          });
+          idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedState);
           return updatedState;
         });
       };
@@ -315,7 +359,7 @@
           setSaveNotice(true);
           setTimeout(() => setSaveNotice(false), 3000);
         } catch (e) {
-          alert("Error saving: " + e.message);
+          alert("Error guardando: " + e.message);
         }
       };
 
@@ -323,7 +367,7 @@
       const handleCreateHoliday = async (e) => {
         e.preventDefault();
         if (!newHolidayName.trim()) {
-          alert("Holiday name is required.");
+          alert("El nombre del feriado es obligatorio.");
           return;
         }
 
@@ -380,12 +424,6 @@
         commentDetail: ""
       });
 
-      useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
-      });
-
       const handleCountrySelectChange = (e) => {
         const selected = e.target.value;
         if (selected === filterCountry) return;
@@ -403,7 +441,7 @@
           setFilterCountry(targetCountry);
           setIsCountryAuthOpen(false);
         } else {
-          setCountryAuthError(`Incorrect password for ${targetCountry}. Access denied.`);
+          setCountryAuthError(`Contraseña incorrecta para ${targetCountry}.`);
         }
       };
 
@@ -482,14 +520,14 @@
             setStaff(prev => prev.filter(a => a.id !== payload.id));
           }
         } else {
-          setMgmtAuthError("Invalid management password. Access denied.");
+          setMgmtAuthError("Contraseña de gestión incorrecta.");
         }
       };
 
       const handleSaveAgentForm = (e) => {
         e.preventDefault();
         if (!currentAgentData.name.trim()) {
-          alert("Agent Name is required.");
+          alert("El nombre del agente es obligatorio.");
           return;
         }
 
@@ -1289,3 +1327,5 @@
     const root = ReactDOM.createRoot(document.getElementById("root"));
     root.render(<App />);
   </script>
+</body>
+</html>
