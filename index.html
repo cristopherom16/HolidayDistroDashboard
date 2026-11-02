@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OFFICIAL HOLIDAY REPORT</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SheetJS -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #f59e0b;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const MANAGEMENT_AUTH_PASSWORD = "management2026!";
+
+    const COUNTRY_PASSWORDS = {
+      "Colombia": "HwyCOL2023",
+      "Guatemala": "HwyGUA2022",
+      "Jamaica": "HwyJAM2024",
+      "Mexico": "HwyMX2025",
+      "Panama": "HwyPAN2024",
+      "Philippines": "HwyPHI2023"
+    };
+
+    const COUNTRY_LIST = ["Guatemala", "Colombia", "Philippines", "Panama", "Jamaica", "Mexico"];
+
+    const NOT_REQUIRED_REASONS = [
+      "Holiday Rested",
+      "Scheduled Day Off",
+      "Sick Day",
+      "Vacation",
+      "Floating Holiday",
+      "Absent",
+      "No Call / No Show",
+      "Emergency Day Off",
+      "LOA"
+    ];
+
+    const DEFAULT_US_HOLIDAYS_2026 = [
+      { id: "new-years", name: "New Year's Day (Jan 1, 2026)" },
+      { id: "mlk", name: "Martin Luther King Jr. Day (Jan 19, 2026)" },
+      { id: "presidents", name: "Washington's Birthday / Presidents' Day (Feb 16, 2026)" },
+      { id: "memorial", name: "Memorial Day (May 25, 2026)" },
+      { id: "juneteenth", name: "Juneteenth National Independence Day (Jun 19, 2026)" },
+      { id: "independence", name: "Independence Day (Observed - Jul 3, 2026)" },
+      { id: "labor", name: "Labor Day (Sep 7, 2026)" },
+      { id: "columbus", name: "Columbus Day / Indigenous Peoples' Day (Oct 12, 2026)" },
+      { id: "veterans", name: "Veterans Day (Nov 11, 2026)" },
+      { id: "thanksgiving", name: "Thanksgiving Day (Nov 26, 2026)" },
+      { id: "christmas", name: "Christmas Day (Dec 25, 2026)" }
+    ];
+
+    const INITIAL_ROSTER = [
+      // Guatemala
+      { id: "GUA-1", name: "Andrea Mansilla", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-2", name: "Daniel E. Hernandez Soto", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-3", name: "Jonathan Mejia", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-4", name: "Brian Lopez", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-5", name: "Marvin Sandoval", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-6", name: "Armando Valenzuela", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-7", name: "Cristopher Orellana", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "6:00:00 AM", checkOut: "3:00:00 AM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-8", name: "Diana Solis", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-9", name: "Jorge Garrido", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "5:00:00 AM", checkOut: "2:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-10", name: "Karen Medinilla", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-11", name: "Kevin Lopez", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-12", name: "Diego Gonzalez", country: "Guatemala", team: "Management", supervisor: "Jorge Garrido", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-13", name: "Emely Hernandez", country: "Guatemala", team: "OBS - Cases", supervisor: "Armando Valenzuela", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-14", name: "Pablo Saquilmer", country: "Guatemala", team: "OBS - Cases", supervisor: "Karen Medinilla", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-15", name: "Ana Lucia Herrera", country: "Guatemala", team: "OBS - Cases", supervisor: "Karen Medinilla", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-16", name: "Emilia Mishel Chajon Perez", country: "Guatemala", team: "OBS - Cases", supervisor: "Karen Medinilla", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-17", name: "Jorge David Corado Saban", country: "Guatemala", team: "OBS - Cases", supervisor: "Karen Medinilla", checkIn: "8:30:00 AM", checkOut: "5:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-18", name: "Diana Abigail Orozco Alvarez", country: "Guatemala", team: "OBS - Cases", supervisor: "Armando Valenzuela", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-19", name: "Rudy Herrera", country: "Guatemala", team: "OBS - Cases", supervisor: "Armando Valenzuela", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-20", name: "Jose Arriaga", country: "Guatemala", team: "IntraCanadian", supervisor: "Armando Valenzuela", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-21", name: "Manuel Juarez", country: "Guatemala", team: "IntraCanadian", supervisor: "Armando Valenzuela", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-22", name: "Sergio David Chigüil Reyes", country: "Guatemala", team: "ELD - Phones", supervisor: "Diego Gonzalez", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-23", name: "Edgar Enrique Castillo Linares", country: "Guatemala", team: "ELD - Phones", supervisor: "Jonathan Mejia", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-24", name: "Brandon Vasquez", country: "Guatemala", team: "ELD - Cases", supervisor: "Jonathan Mejia", checkIn: "8:00:00 AM", checkOut: "9:00:00 AM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-25", name: "Samantha Chinchilla", country: "Guatemala", team: "ELD - Phones", supervisor: "Jonathan Mejia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-26", name: "Celina Esmeralda Franco Ramirez", country: "Guatemala", team: "ELD - Cases", supervisor: "Jonathan Mejia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-27", name: "Froy Cesar Oswaldo Gonzalez Davila", country: "Guatemala", team: "ELD - Cases", supervisor: "Jonathan Mejia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-28", name: "Luis Gonzalez", country: "Guatemala", team: "ELD - Phones", supervisor: "Jonathan Mejia", checkIn: "5:00:00 AM", checkOut: "2:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-29", name: "Esvin Gomez", country: "Guatemala", team: "ELD - Phones", supervisor: "Diego Gonzalez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-30", name: "Iverth Anthony Monterroso", country: "Guatemala", team: "ELD - Cases", supervisor: "Diego Gonzalez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-31", name: "Kevin Josue Martinez Acabal", country: "Guatemala", team: "ELD - Phones", supervisor: "Diego Gonzalez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-32", name: "Melanie Annelisse Garcia Marin", country: "Guatemala", team: "ELD - Phones", supervisor: "Jonathan Mejia", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-33", name: "Josue Sucuc", country: "Guatemala", team: "ELD - Cases", supervisor: "Jonathan Mejia", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-34", name: "Sebastian Quinonez", country: "Guatemala", team: "ELD - Phones", supervisor: "Jonathan Mejia", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-35", name: "Luis Ajche", country: "Guatemala", team: "ELD - Phones", supervisor: "Jonathan Mejia", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-36", name: "Jorge Marco Geovani Najera Barillas", country: "Guatemala", team: "ELD - Phones", supervisor: "Jonathan Mejia", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-37", name: "Otto de la Cruz", country: "Guatemala", team: "INS - Cases", supervisor: "Andrea Mansilla", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-38", name: "Manfredo Monterroso", country: "Guatemala", team: "INS - Phones", supervisor: "Andrea Mansilla", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-39", name: "Eunice Sir", country: "Guatemala", team: "INS - Cases", supervisor: "Andrea Mansilla", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-40", name: "Gustavo Lopez", country: "Guatemala", team: "INS - Phones", supervisor: "Andrea Mansilla", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-41", name: "Ana Maria Melendez", country: "Guatemala", team: "INS - Phones", supervisor: "Kevin Lopez", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-42", name: "Monica Lopez", country: "Guatemala", team: "INS - Cases", supervisor: "Kevin Lopez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-43", name: "Kener Lee", country: "Guatemala", team: "INS - Phones", supervisor: "Andrea Mansilla", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-44", name: "Ariel Antonio Yaegui Mazate", country: "Guatemala", team: "INS - Cases", supervisor: "Andrea Mansilla", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-45", name: "Acsa Marroquin", country: "Guatemala", team: "INS - Phones", supervisor: "Andrea Mansilla", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-46", name: "Marco Ovalle", country: "Guatemala", team: "INS - Cases", supervisor: "Kevin Lopez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-47", name: "Kathering Santos", country: "Guatemala", team: "INS - Cases", supervisor: "Kevin Lopez", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-48", name: "Lynda Isabel Escobedo de Leon", country: "Guatemala", team: "INS - Cases", supervisor: "Kevin Lopez", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-49", name: "Juan Carlos Avedaño", country: "Guatemala", team: "INS - Cases", supervisor: "Andrea Mansilla", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-50", name: "Cesar David Lopez Colaj", country: "Guatemala", team: "INS - Phones", supervisor: "Kevin Lopez", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-51", name: "Julio Cortez", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-52", name: "Alex Margarito Tum Coyote", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-53", name: "Omar Gomez", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-54", name: "Luis Escobar", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-55", name: "Andy Pineda", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "7:30:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-56", name: "Edgar Palomo", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-57", name: "Jonathan Pirir", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "GUA-58", name: "Yossi Martinez", country: "Guatemala", team: "Load Lock", supervisor: "Brian Lopez", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+
+      // Colombia
+      { id: "COL-1", name: "Alejandra Manco", country: "Colombia", team: "OBS - Cases", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-2", name: "Sergio Hernandez", country: "Colombia", team: "Cases", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-3", name: "Julian Garcia", country: "Colombia", team: "Cases", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-4", name: "Sergio Gomez", country: "Colombia", team: "Phones", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-5", name: "Marlon Gallardo", country: "Colombia", team: "Phones", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-6", name: "Kevin Cadavid", country: "Colombia", team: "OBS - Phones", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-7", name: "Andrea Niño", country: "Colombia", team: "OBS - Phones", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-8", name: "Alexander Jaramillo Alvarado", country: "Colombia", team: "OBS - Phones", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-9", name: "Luis León", country: "Colombia", team: "Insurance phones", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-10", name: "Michelle Daniela Marquez Rodriguez", country: "Colombia", team: "INS - cases", supervisor: "Nury Garcia", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "COL-11", name: "Nury Garcia", country: "Colombia", team: "Management", supervisor: "Nury Garcia", checkIn: "9:00:00 AM", checkOut: "6:00:00 AM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+
+      // Philippines
+      { id: "PH-1", name: "Jenny Jakosalem", country: "Philippines", team: "CS Management", supervisor: "Jenny Jakosalem", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PH-2", name: "Marianne Abigail Velasco", country: "Philippines", team: "After Hours Operations", supervisor: "Jenny Jakosalem", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PH-3", name: "Mary Joy Rafols", country: "Philippines", team: "After Hours Operations", supervisor: "Jenny Jakosalem", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PH-4", name: "Kyle Andrei Abad", country: "Philippines", team: "After Hours Operations", supervisor: "Jenny Jakosalem", checkIn: "11:00:00 AM", checkOut: "8:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PH-5", name: "Aaron Gozum", country: "Philippines", team: "After Hours Operations", supervisor: "Jenny Jakosalem", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PH-6", name: "Ann Jules Dayuta", country: "Philippines", team: "After Hours Operations", supervisor: "Jenny Jakosalem", checkIn: "11:00:00 AM", checkOut: "8:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+
+      // Panama
+      { id: "PAN-1", name: "Lelburm Gordon", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "6:00:00 AM", checkOut: "3:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-2", name: "Dean Spencer", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "6:00:00 AM", checkOut: "3:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-3", name: "Stephanie Temple", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "6:00:00 AM", checkOut: "3:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-4", name: "Kellyneth Estrada", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "7:00:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-5", name: "Alexander Santamaria", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "7:00:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-6", name: "Sonia Jimenez", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "7:00:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-7", name: "Zinedine Moscote", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "8:30:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-8", name: "Felix Torres", country: "Panama", team: "OBS - Phones", supervisor: "Eduardo Bellamy", checkIn: "9:30:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-9", name: "Keyren Fuertes", country: "Panama", team: "INS - Phones", supervisor: "Eduardo Bellamy", checkIn: "6:00:00 AM", checkOut: "3:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-10", name: "Osvaldo Flores", country: "Panama", team: "INS - Phones", supervisor: "Eduardo Bellamy", checkIn: "6:00:00 AM", checkOut: "3:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-11", name: "Daisy Ledesma", country: "Panama", team: "INS - Phones", supervisor: "Eduardo Bellamy", checkIn: "7:00:00 AM", checkOut: "3:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-12", name: "Shindana Redwood", country: "Panama", team: "INS - Phones", supervisor: "Eduardo Bellamy", checkIn: "8:30:00 AM", checkOut: "5:30:00 AM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-13", name: "Marielys Tejada", country: "Panama", team: "INS - Phones", supervisor: "Eduardo Bellamy", checkIn: "9:30:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-14", name: "Benneth Smith", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "7:30:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-15", name: "Jesus Rios", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "8:00:00 AM", checkOut: "5:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-16", name: "Marie Claire Perez", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "8:00:00 AM", checkOut: "5:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-17", name: "Francisco Goncalvez", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "8:00:00 AM", checkOut: "5:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-18", name: "Marcos Anibal Botello Espinosa", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "8:30:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-19", name: "Jose Del Carmen Rodriguez Rosas", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "9:30:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-20", name: "Carlos Ledezma", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "9:00:00 AM", checkOut: "6:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-21", name: "Rogelio Rodriguez", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "9:00:00 AM", checkOut: "6:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-22", name: "Kevin Williams", country: "Panama", team: "ELD - phones", supervisor: "Eduardo Bellamy", checkIn: "9:30:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-23", name: "Alexis Serracin", country: "Panama", team: "coi", supervisor: "Eduardo Bellamy", checkIn: "8:00:00 AM", checkOut: "5:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-24", name: "Joel Rodriguez", country: "Panama", team: "coi", supervisor: "Eduardo Bellamy", checkIn: "7:30:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-25", name: "Mario Perez", country: "Panama", team: "emails", supervisor: "Eduardo Bellamy", checkIn: "6:30:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-26", name: "Maria Vasquez", country: "Panama", team: "Phones", supervisor: "Eduardo Bellamy", checkIn: "7:30:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-27", name: "Nidia Burrows", country: "Panama", team: "Phones", supervisor: "Eduardo Bellamy", checkIn: "8:00:00 AM", checkOut: "5:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-28", name: "Faustino Santos", country: "Panama", team: "Phones", supervisor: "Eduardo Bellamy", checkIn: "8:30:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-29", name: "Daniela Cerezo", country: "Panama", team: "Management", supervisor: "Eduardo Bellamy", checkIn: "8:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-30", name: "Eduardo Bellamy", country: "Panama", team: "Management", supervisor: "Eduardo Bellamy", checkIn: "9:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "PAN-31", name: "Manuel Castro", country: "Panama", team: "Management", supervisor: "Eduardo Bellamy", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+
+      // Jamaica
+      { id: "JAM-1", name: "Daneil Facey", country: "Jamaica", team: "OBS - Phones", supervisor: "Akeem Reid", checkIn: "7:00:00 AM", checkOut: "4:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-2", name: "Shanique Kelly", country: "Jamaica", team: "OBS - Phones", supervisor: "Chantal Pancho", checkIn: "7:00:00 AM", checkOut: "4:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-3", name: "Leona Wallace", country: "Jamaica", team: "OBS - Phones", supervisor: "Akeem Reid", checkIn: "8:00:00 AM", checkOut: "5:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-4", name: "Vashaun Thompson", country: "Jamaica", team: "OBS - Phones", supervisor: "Chantal Pancho", checkIn: "8:00:00 AM", checkOut: "5:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-5", name: "Alex Scarlett", country: "Jamaica", team: "OBS - Phones", supervisor: "Akeem Reid", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-6", name: "Michelle Salmon", country: "Jamaica", team: "OBS - Phones", supervisor: "Chantal Pancho", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-7", name: "Rohanya Gordon", country: "Jamaica", team: "OBS - Phones", supervisor: "Akeem Reid", checkIn: "8:00:00 AM", checkOut: "5:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-8", name: "Kenford Morris", country: "Jamaica", team: "ELD - Phones", supervisor: "Sheldon Duncombe", checkIn: "7:00:00 AM", checkOut: "4:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-9", name: "Shenique Thompson", country: "Jamaica", team: "OBS - Phones", supervisor: "Sheldon Duncombe", checkIn: "7:30:00 AM", checkOut: "17:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-10", name: "Kascia Webb", country: "Jamaica", team: "OBS - Phones", supervisor: "Akeem Reid", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-11", name: "Kia Francis", country: "Jamaica", team: "ELD - Phones", supervisor: "Chantal Pancho", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-12", name: "Tevin Smallwood", country: "Jamaica", team: "ELD - Cases", supervisor: "Chantal Pancho", checkIn: "6:00:00 AM", checkOut: "3:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-13", name: "Shiyan Lee", country: "Jamaica", team: "ELD - Phones", supervisor: "Chantal Pancho", checkIn: "7:00:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-14", name: "Abigayle Gentles", country: "Jamaica", team: "Management", supervisor: "Akeem Reid", checkIn: "7:00:00 AM", checkOut: "4:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-15", name: "Sheldon Duncombe", country: "Jamaica", team: "Management", supervisor: "Akeem Reid", checkIn: "7:00:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-16", name: "Akeem Reid", country: "Jamaica", team: "Management", supervisor: "Akeem Reid", checkIn: "7:00:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "JAM-17", name: "Chantal Pancho", country: "Jamaica", team: "Management", supervisor: "Chantal Pancho", checkIn: "7:00:00 AM", checkOut: "4:30:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+
+      // Mexico
+      { id: "MEX-1", name: "Camila Martinez", country: "Mexico", team: "TFX", supervisor: "Sebastian Chavez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-2", name: "Daniel Alejandro Flores Castañeda", country: "Mexico", team: "TFX", supervisor: "Sebastian Chavez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-3", name: "Fernando García Rodriguez", country: "Mexico", team: "OBS - Cases", supervisor: "Carlos Rios", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-4", name: "Galilea Danae Gutierrez Fregoso", country: "Mexico", team: "OBS - Cases", supervisor: "Carlos Rios", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-5", name: "Israel Calderón Arias", country: "Mexico", team: "OBS - Phones", supervisor: "Carlos Rios", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-6", name: "Bruno Alfonso Rodriguez Lucio", country: "Mexico", team: "OBS - Phones", supervisor: "Sabdy Alvarez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-7", name: "Raul Tornel Garcia", country: "Mexico", team: "OBS - Phones", supervisor: "Sabdy Alvarez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-8", name: "Omar Ulises Guzman Jímenez", country: "Mexico", team: "OBS - Phones", supervisor: "Carlos Rios", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-9", name: "Nancy Johnston Pulido", country: "Mexico", team: "Cases", supervisor: "Carlos Rios", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-10", name: "Joseth Belem Huerta Rodriguez", country: "Mexico", team: "INS - Cases", supervisor: "Carlos Rios", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-11", name: "Alondra Mendoza Pardo", country: "Mexico", team: "INS - Cases", supervisor: "Sabdy Alvarez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-12", name: "Christian Juan Moises Paez Valencia", country: "Mexico", team: "Phones", supervisor: "Sabdy Alvarez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-13", name: "Cesar Alexis Sanchez Larios", country: "Mexico", team: "ELD - Phones", supervisor: "Carlos Rios", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-14", name: "Danae Castillo Fregoso", country: "Mexico", team: "ELD - Phones", supervisor: "Sabdy Alvarez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-15", name: "Kevin Gordoa Ibarra", country: "Mexico", team: "ELD - Phones", supervisor: "Carlos Rios", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-16", name: "Daniel Sebastian Pelayo Zarate", country: "Mexico", team: "ELD - Phones", supervisor: "Sabdy Alvarez", checkIn: "9:00:00 AM", checkOut: "6:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-17", name: "José Isaias Nuñez Barrios", country: "Mexico", team: "Phones", supervisor: "Sebastian Chavez", checkIn: "6:00:00 AM", checkOut: "3:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-18", name: "Grecia Martínez Samaniego", country: "Mexico", team: "Phones", supervisor: "Sebastian Chavez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-19", name: "Jose Andrés Perez Martin", country: "Mexico", team: "Phones", supervisor: "Sebastian Chavez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-20", name: "Jonathan Ricardo Gonzalez Araiza", country: "Mexico", team: "Phones", supervisor: "Sebastian Chavez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-21", name: "Pablo Arturo Figueroa Donde", country: "Mexico", team: "Phones", supervisor: "Sebastian Chavez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-22", name: "Fernando Daniel Ramirez Rodriguez", country: "Mexico", team: "TFX", supervisor: "Sebastian Chavez", checkIn: "6:00:00 AM", checkOut: "3:00:00 AM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-23", name: "Mariana Velasquez Cruz", country: "Mexico", team: "TFX", supervisor: "Sebastian Chavez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-24", name: "Maria Fernanda Saucedo Marquez", country: "Mexico", team: "TFX", supervisor: "Sebastian Chavez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-25", name: "Diego Emiliano Archundia Ocha", country: "Mexico", team: "Phones", supervisor: "Sabdy Alvarez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-26", name: "Frida Alexandra Solis Moscorro", country: "Mexico", team: "Phones", supervisor: "Sabdy Alvarez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-27", name: "Irving Reyes Neri", country: "Mexico", team: "T2", supervisor: "Sabdy Alvarez", checkIn: "8:00:00 AM", checkOut: "5:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-28", name: "Sabdy Alvarez", country: "Mexico", team: "Management", supervisor: "Sabdy Alvarez", checkIn: "7:00:00 AM", checkOut: "4:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-29", name: "Sebastian Chavez", country: "Mexico", team: "Management", supervisor: "Sebastian Chavez", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" },
+      { id: "MEX-30", name: "Carlos Rios", country: "Mexico", team: "Management", supervisor: "Carlos Rios", checkIn: "10:00:00 AM", checkOut: "7:00:00 PM", isRequired: true, commentType: "Shift Completed", commentDetail: "" }
+    ];
+
+    function App() {
+      // Holidays list con almacenamiento local
+      const [holidaysList, setHolidaysList] = useState(() => {
+        try {
+          const savedList = localStorage.getItem("OFFICIAL_HOLIDAYS_CATALOG");
+          if (savedList) return JSON.parse(savedList);
+        } catch (e) {
+          console.error("Failed to read holidays list", e);
+        }
+        return DEFAULT_US_HOLIDAYS_2026;
+      });
+
+      const [selectedHolidayId, setSelectedHolidayId] = useState("labor");
+      const [holidaysData, setHolidaysData] = useState(() => {
+        try {
+          const saved = localStorage.getItem("OFFICIAL_HOLIDAY_REPORTS_V4");
+          if (saved) return JSON.parse(saved);
+        } catch (e) {
+          console.error("Failed to read storage", e);
+        }
+        return { "labor": INITIAL_ROSTER };
+      });
+
+      const [saveNotice, setSaveNotice] = useState(false);
+
+      // Modal para nuevo Holiday
+      const [isNewHolidayModalOpen, setIsNewHolidayModalOpen] = useState(false);
+      const [newHolidayName, setNewHolidayName] = useState("");
+      const [newHolidayDate, setNewHolidayDate] = useState("");
+
+      const staff = useMemo(() => {
+        return holidaysData[selectedHolidayId] || INITIAL_ROSTER;
+      }, [holidaysData, selectedHolidayId]);
+
+      const setStaff = (updater) => {
+        setHolidaysData(prev => {
+          const currentList = prev[selectedHolidayId] || INITIAL_ROSTER;
+          const nextList = typeof updater === "function" ? updater(currentList) : updater;
+          const updatedState = { ...prev, [selectedHolidayId]: nextList };
+          try {
+            localStorage.setItem("OFFICIAL_HOLIDAY_REPORTS_V4", JSON.stringify(updatedState));
+          } catch (e) {
+            console.error("Storage error", e);
+          }
+          return updatedState;
+        });
+      };
+
+      const handleSaveHolidayManually = () => {
+        try {
+          localStorage.setItem("OFFICIAL_HOLIDAY_REPORTS_V4", JSON.stringify(holidaysData));
+          localStorage.setItem("OFFICIAL_HOLIDAYS_CATALOG", JSON.stringify(holidaysList));
+          setSaveNotice(true);
+          setTimeout(() => setSaveNotice(false), 3000);
+        } catch (e) {
+          alert("Error saving: " + e.message);
+        }
+      };
+
+      // Crear nuevo holiday
+      const handleCreateHoliday = (e) => {
+        e.preventDefault();
+        if (!newHolidayName.trim()) {
+          alert("Holiday name is required.");
+          return;
+        }
+
+        const formattedLabel = newHolidayDate.trim()
+          ? `${newHolidayName.trim()} (${newHolidayDate.trim()})`
+          : newHolidayName.trim();
+
+        const newId = "holiday-" + Date.now();
+        const updatedList = [...holidaysList, { id: newId, name: formattedLabel }];
+        setHolidaysList(updatedList);
+        try {
+          localStorage.setItem("OFFICIAL_HOLIDAYS_CATALOG", JSON.stringify(updatedList));
+        } catch (err) {
+          console.error("Failed to persist holiday catalog", err);
+        }
+
+        // Inicializar datos para el nuevo holiday replicando la plantilla inicial
+        setHolidaysData(prev => {
+          const updated = { ...prev, [newId]: INITIAL_ROSTER };
+          try {
+            localStorage.setItem("OFFICIAL_HOLIDAY_REPORTS_V4", JSON.stringify(updated));
+          } catch (err) {
+            console.error("Storage error", err);
+          }
+          return updated;
+        });
+
+        setSelectedHolidayId(newId);
+        setNewHolidayName("");
+        setNewHolidayDate("");
+        setIsNewHolidayModalOpen(false);
+      };
+
+      // Filtros
+      const [filterCountry, setFilterCountry] = useState("Guatemala");
+      const [searchTerm, setSearchTerm] = useState("");
+      const [filterTeam, setFilterTeam] = useState("ALL");
+      const [filterSupervisor, setFilterSupervisor] = useState("ALL");
+      const [filterRequirement, setFilterRequirement] = useState("ALL");
+      const [filterComment, setFilterComment] = useState("ALL");
+
+      // Password Modal para Cambio de País
+      const [isCountryAuthOpen, setIsCountryAuthOpen] = useState(false);
+      const [targetCountry, setTargetCountry] = useState("");
+      const [countryPasswordInput, setCountryPasswordInput] = useState("");
+      const [countryAuthError, setCountryAuthError] = useState("");
+
+      // Password Modal para Management Actions (Add, Edit, Delete)
+      const [isMgmtAuthModalOpen, setIsMgmtAuthModalOpen] = useState(false);
+      const [mgmtActionPayload, setMgmtActionPayload] = useState(null);
+      const [mgmtPasswordInput, setMgmtPasswordInput] = useState("");
+      const [mgmtAuthError, setMgmtAuthError] = useState("");
+
+      // Modal Add/Edit
+      const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+      const [modalMode, setModalMode] = useState("add");
+      const [currentAgentData, setCurrentAgentData] = useState({
+        id: "",
+        name: "",
+        country: "Guatemala",
+        team: "Management",
+        supervisor: "Jorge Garrido",
+        checkIn: "07:00:00 AM",
+        checkOut: "04:00:00 PM",
+        isRequired: true,
+        commentType: "Shift Completed",
+        commentDetail: ""
+      });
+
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      const handleCountrySelectChange = (e) => {
+        const selected = e.target.value;
+        if (selected === filterCountry) return;
+
+        setTargetCountry(selected);
+        setCountryPasswordInput("");
+        setCountryAuthError("");
+        setIsCountryAuthOpen(true);
+      };
+
+      const handleVerifyCountryPassword = (e) => {
+        e?.preventDefault();
+        const requiredPass = COUNTRY_PASSWORDS[targetCountry];
+        if (countryPasswordInput === requiredPass) {
+          setFilterCountry(targetCountry);
+          setIsCountryAuthOpen(false);
+        } else {
+          setCountryAuthError(`Incorrect password for ${targetCountry}. Access denied.`);
+        }
+      };
+
+      // Opciones para filtros
+      const teams = useMemo(() => {
+        const countryStaff = staff.filter(s => s.country === filterCountry);
+        return ["ALL", ...new Set(countryStaff.map(s => s.team))].sort();
+      }, [staff, filterCountry]);
+
+      const supervisors = useMemo(() => {
+        const countryStaff = staff.filter(s => s.country === filterCountry);
+        return ["ALL", ...new Set(countryStaff.map(s => s.supervisor))].sort();
+      }, [staff, filterCountry]);
+
+      // KPIs
+      const countryStaffAll = useMemo(() => staff.filter(s => s.country === filterCountry), [staff, filterCountry]);
+      const totalStaff = countryStaffAll.length;
+      const requiredCount = countryStaffAll.filter(s => s.isRequired).length;
+      const notRequiredCount = totalStaff - requiredCount;
+      const completedCount = countryStaffAll.filter(s => s.commentType === "Shift Completed").length;
+      const exceptionsCount = countryStaffAll.filter(s => s.commentType === "Early Out at" || s.commentType === "Late In at").length;
+
+      // Filtrado
+      const filteredStaff = useMemo(() => {
+        return staff.filter(agent => {
+          if (agent.country !== filterCountry) return false;
+
+          const matchSearch =
+            agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            agent.supervisor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            agent.team.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchTeam = filterTeam === "ALL" || agent.team === filterTeam;
+          const matchSupervisor = filterSupervisor === "ALL" || agent.supervisor === filterSupervisor;
+          const matchReq =
+            filterRequirement === "ALL"
+              ? true
+              : filterRequirement === "REQUIRED"
+              ? agent.isRequired
+              : !agent.isRequired;
+          const matchComment = filterComment === "ALL" || agent.commentType === filterComment;
+
+          return matchSearch && matchTeam && matchSupervisor && matchReq && matchComment;
+        });
+      }, [staff, filterCountry, searchTerm, filterTeam, filterSupervisor, filterRequirement, filterComment]);
+
+      // Password Management
+      const triggerMgmtProtectedAction = (actionType, payload) => {
+        setMgmtActionPayload({ type: actionType, payload });
+        setMgmtPasswordInput("");
+        setMgmtAuthError("");
+        setIsMgmtAuthModalOpen(true);
+      };
+
+      const handleVerifyMgmtPassword = (e) => {
+        e?.preventDefault();
+        if (mgmtPasswordInput === MANAGEMENT_AUTH_PASSWORD) {
+          setIsMgmtAuthModalOpen(false);
+          const { type, payload } = mgmtActionPayload;
+
+          if (type === "ADD_MODAL") {
+            setModalMode("add");
+            setCurrentAgentData({
+              id: "EMP-" + Date.now().toString().slice(-4),
+              name: "",
+              country: filterCountry,
+              team: teams[1] || "Management",
+              supervisor: supervisors[1] || "",
+              checkIn: "07:00:00 AM",
+              checkOut: "04:00:00 PM",
+              isRequired: true,
+              commentType: "Shift Completed",
+              commentDetail: ""
+            });
+            setIsAgentModalOpen(true);
+          } else if (type === "EDIT_MODAL") {
+            setModalMode("edit");
+            setCurrentAgentData({ ...payload });
+            setIsAgentModalOpen(true);
+          } else if (type === "DELETE_AGENT") {
+            setStaff(prev => prev.filter(a => a.id !== payload.id));
+          }
+        } else {
+          setMgmtAuthError("Invalid management password. Access denied.");
+        }
+      };
+
+      const handleSaveAgentForm = (e) => {
+        e.preventDefault();
+        if (!currentAgentData.name.trim()) {
+          alert("Agent Name is required.");
+          return;
+        }
+
+        if (modalMode === "add") {
+          setStaff(prev => [currentAgentData, ...prev]);
+        } else {
+          setStaff(prev => prev.map(a => a.id === currentAgentData.id ? currentAgentData : a));
+        }
+        setIsAgentModalOpen(false);
+      };
+
+      const updateAgentField = (id, field, value) => {
+        setStaff(prev =>
+          prev.map(agent => {
+            if (agent.id === id) {
+              const updated = { ...agent, [field]: value };
+              if (field === "commentType") {
+                if (value === "Not Required to Come") {
+                  updated.isRequired = false;
+                  if (!NOT_REQUIRED_REASONS.includes(updated.commentDetail)) {
+                    updated.commentDetail = "Holiday Rested";
+                  }
+                } else if (value === "Shift Completed") {
+                  updated.isRequired = true;
+                  updated.commentDetail = "";
+                } else {
+                  updated.isRequired = true;
+                  if (NOT_REQUIRED_REASONS.includes(updated.commentDetail)) {
+                    updated.commentDetail = "";
+                  }
+                }
+              }
+              return updated;
+            }
+            return agent;
+          })
+        );
+      };
+
+      const handleBulkRequirement = (status) => {
+        const idsToUpdate = new Set(filteredStaff.map(s => s.id));
+        setStaff(prev =>
+          prev.map(agent =>
+            idsToUpdate.has(agent.id)
+              ? {
+                  ...agent,
+                  isRequired: status,
+                  commentType: status ? (agent.commentType === "Not Required to Come" ? "Shift Completed" : agent.commentType) : "Not Required to Come",
+                  commentDetail: status ? "" : "Holiday Rested"
+                }
+              : agent
+          )
+        );
+      };
+
+      // Exportar Excel (sin columna Branch)
+      const handleExportToExcel = () => {
+        const holidayObj = holidaysList.find(h => h.id === selectedHolidayId);
+        const exportData = filteredStaff.map((agent, index) => {
+          let detailLabel = agent.commentDetail || "N/A";
+          let fullStatus = agent.commentType;
+          if (agent.commentType === "Not Required to Come") {
+            fullStatus = `Not Required to Come (${agent.commentDetail || "Holiday Rested"})`;
+          } else if (agent.commentType === "Early Out at" || agent.commentType === "Late In at") {
+            fullStatus = `${agent.commentType} ${agent.commentDetail || "Time Unspecified"}`;
+          }
+
+          return {
+            "No.": index + 1,
+            "Full Name": agent.name,
+            "Country": agent.country,
+            "Team": agent.team,
+            "Direct Supervisor": agent.supervisor,
+            "Check In": agent.checkIn,
+            "Check Out": agent.checkOut,
+            "Required to Work": agent.isRequired ? "YES" : "NO",
+            "Main Status": agent.commentType,
+            "Status Detail / Reason": detailLabel,
+            "Full Status Summary": fullStatus,
+            "Official Holiday": holidayObj?.name || selectedHolidayId
+          };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${filterCountry} Roster`);
+
+        const colWidths = [
+          { wch: 6 },
+          { wch: 32 },
+          { wch: 15 },
+          { wch: 22 },
+          { wch: 22 },
+          { wch: 16 },
+          { wch: 16 },
+          { wch: 18 },
+          { wch: 22 },
+          { wch: 22 },
+          { wch: 38 },
+          { wch: 38 }
+        ];
+        worksheet["!cols"] = colWidths;
+
+        const holidaySlug = (holidayObj?.name || selectedHolidayId).replace(/[^a-zA-Z0-9]/g, "_");
+        XLSX.writeFile(workbook, `OFFICIAL_HOLIDAY_REPORT_${filterCountry}_${holidaySlug}.xlsx`);
+      };
+
+      return (
+        <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
+          {/* HEADER PRINCIPAL */}
+          <header className="border-b border-amber-500/20 bg-slate-900/90 backdrop-blur-md sticky top-0 z-30 shadow-xl shadow-amber-950/10">
+            <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 text-slate-950 font-black">
+                  <i data-lucide="calendar" className="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-amber-400 drop-shadow-[0_2px_10px_rgba(251,191,36,0.3)] uppercase flex items-center gap-2">
+                      OFFICIAL HOLIDAY REPORT
+                    </h1>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-widest">
+                      2026 EDITION
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-medium">Global Workforce Holiday Attendance & Dispatch System</p>
+                </div>
+              </div>
+
+              {/* Selector de Feriado + Botón de Agregar Nuevo Feriado */}
+              <div className="flex items-center flex-wrap gap-2.5">
+                <div className="flex items-center bg-slate-950 border border-amber-500/30 rounded-xl px-3 py-1.5 shadow-inner">
+                  <i data-lucide="sparkles" className="w-4 h-4 text-amber-400 mr-2 shrink-0"></i>
+                  <span className="text-xs text-amber-300/80 uppercase font-semibold mr-2 hidden sm:inline">Select Holiday:</span>
+                  <select
+                    value={selectedHolidayId}
+                    onChange={(e) => setSelectedHolidayId(e.target.value)}
+                    className="bg-transparent text-amber-400 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer pr-2 max-w-[220px] sm:max-w-[280px] truncate"
+                  >
+                    {holidaysList.map(h => (
+                      <option key={h.id} value={h.id} className="bg-slate-900 text-white py-1">
+                        {h.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Botón para añadir nuevo Holiday */}
+                <button
+                  onClick={() => setIsNewHolidayModalOpen(true)}
+                  title="Add Custom Holiday"
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
+                >
+                  <i data-lucide="calendar-plus" className="w-4 h-4"></i>
+                  <span>Add Holiday</span>
+                </button>
+
+                <button
+                  onClick={handleSaveHolidayManually}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+                >
+                  <i data-lucide="save" className="w-4 h-4"></i>
+                  <span>Save Holiday</span>
+                </button>
+
+                <button
+                  onClick={handleExportToExcel}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-700/20 transition-all active:scale-95"
+                >
+                  <i data-lucide="file-spreadsheet" className="w-4 h-4"></i>
+                  <span>Export to Excel</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Notificación de guardado */}
+          {saveNotice && (
+            <div className="bg-amber-500 text-slate-950 text-xs font-bold py-1.5 px-4 text-center transition-all animate-pulse">
+              ✓ Holiday Report Data saved successfully to persistent storage!
+            </div>
+          )}
+
+          {/* MAIN CONTAINER */}
+          <main className="flex-1 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+            
+            {/* KPI STAT CARDS */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+              <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total in {filterCountry}</div>
+                <div className="text-2xl sm:text-3xl font-black text-white mt-1">{totalStaff}</div>
+                <div className="text-[11px] text-slate-500 mt-1">Active Roster Agents</div>
+              </div>
+
+              <div className="bg-slate-900/70 border border-amber-500/30 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm shadow-md shadow-amber-950/20">
+                <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                  Required to Work
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-amber-400 mt-1">{requiredCount}</div>
+                <div className="text-[11px] text-amber-400/70 mt-1">
+                  {totalStaff ? ((requiredCount / totalStaff) * 100).toFixed(0) : 0}% Active Coverage
+                </div>
+              </div>
+
+              <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Not Required / Off</div>
+                <div className="text-2xl sm:text-3xl font-black text-slate-300 mt-1">{notRequiredCount}</div>
+                <div className="text-[11px] text-slate-500 mt-1">Exempt / Rested</div>
+              </div>
+
+              <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
+                <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Shift Completed</div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">{completedCount}</div>
+                <div className="text-[11px] text-slate-500 mt-1">Full shift recorded</div>
+              </div>
+
+              <div className="bg-slate-900/70 border border-rose-500/20 rounded-2xl p-4 relative overflow-hidden backdrop-blur-sm">
+                <div className="text-xs font-bold text-rose-400 uppercase tracking-wider">Exceptions</div>
+                <div className="text-2xl sm:text-3xl font-black text-rose-400 mt-1">{exceptionsCount}</div>
+                <div className="text-[11px] text-slate-500 mt-1">Late In or Early Out</div>
+              </div>
+            </div>
+
+            {/* SECCIÓN DE FILTROS */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                
+                {/* Selector de País con Contraseña */}
+                <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2">
+                  <label className="text-[11px] font-black text-amber-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span>Active Country</span>
+                    <i data-lucide="shield-check" className="w-3.5 h-3.5 text-amber-400"></i>
+                  </label>
+                  <select
+                    value={filterCountry}
+                    onChange={handleCountrySelectChange}
+                    className="w-full bg-slate-950 border border-amber-500/50 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 font-bold focus:outline-none cursor-pointer"
+                  >
+                    {COUNTRY_LIST.map(c => (
+                      <option key={c} value={c} className="bg-slate-900 text-white font-medium">
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Search */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Search Agent</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Name, supervisor..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all"
+                    />
+                    {searchTerm && (
+                      <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-2 text-slate-500 hover:text-white">✕</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Team Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Team</label>
+                  <select
+                    value={filterTeam}
+                    onChange={(e) => setFilterTeam(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  >
+                    {teams.map(t => (
+                      <option key={t} value={t}>{t === "ALL" ? "All Teams" : t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Supervisor Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Supervisor</label>
+                  <select
+                    value={filterSupervisor}
+                    onChange={(e) => setFilterSupervisor(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  >
+                    {supervisors.map(s => (
+                      <option key={s} value={s}>{s === "ALL" ? "All Supervisors" : s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status / Comment Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Status Comment</label>
+                  <select
+                    value={filterComment}
+                    onChange={(e) => setFilterComment(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  >
+                    <option value="ALL">All Comments</option>
+                    <option value="Shift Completed">Shift Completed</option>
+                    <option value="Early Out at">Early Out at</option>
+                    <option value="Late In at">Late In at</option>
+                    <option value="Not Required to Come">Not Required to Come</option>
+                  </select>
+                </div>
+
+              </div>
+
+              {/* BARRA: ADD AGENT & BULK */}
+              <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => triggerMgmtProtectedAction("ADD_MODAL", null)}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+                  >
+                    <i data-lucide="user-plus" className="w-4 h-4"></i>
+                    <span>Add Agent</span>
+                  </button>
+
+                  <span className="text-xs text-slate-400 font-medium">
+                    Showing <span className="font-bold text-amber-400">{filteredStaff.length}</span> of {countryStaffAll.length} agents in <span className="text-white font-bold">{filterCountry}</span>
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleBulkRequirement(true)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-amber-300 border border-slate-700 transition-colors"
+                  >
+                    Mark Filtered Required
+                  </button>
+                  <button
+                    onClick={() => handleBulkRequirement(false)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-400 border border-slate-700 transition-colors"
+                  >
+                    Mark Filtered Not Required
+                  </button>
+                  {(searchTerm || filterTeam !== "ALL" || filterSupervisor !== "ALL" || filterComment !== "ALL") && (
+                    <button
+                      onClick={() => {
+                        setSearchTerm("");
+                        setFilterTeam("ALL");
+                        setFilterSupervisor("ALL");
+                        setFilterComment("ALL");
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 text-[11px] font-semibold transition-colors"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* TABLA PRINCIPAL (COLUMNA BRANCH ELIMINADA) */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-amber-500/30 text-amber-400 font-bold tracking-wider uppercase text-[11px]">
+                      <th className="py-3 px-3 w-12 text-center">#</th>
+                      <th className="py-3 px-4">Name</th>
+                      <th className="py-3 px-3">Country</th>
+                      <th className="py-3 px-3">Team</th>
+                      <th className="py-3 px-3">Supervisor</th>
+                      <th className="py-3 px-3 text-center bg-slate-800/40 text-amber-300">Check In</th>
+                      <th className="py-3 px-3 text-center bg-slate-800/40 text-amber-300">Check Out</th>
+                      <th className="py-3 px-3 text-center">Required to Work?</th>
+                      <th className="py-3 px-4">Status & Reason/Time</th>
+                      <th className="py-3 px-3 text-center w-24">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/70 font-medium">
+                    {filteredStaff.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" className="py-12 text-center text-slate-500 italic">
+                          No matching team members found for {filterCountry}.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStaff.map((agent, index) => {
+                        const isExempt = !agent.isRequired;
+                        return (
+                          <tr
+                            key={agent.id}
+                            className={`transition-colors hover:bg-slate-800/50 ${
+                              isExempt ? "bg-slate-950/40 opacity-75" : "bg-transparent"
+                            }`}
+                          >
+                            <td className="py-3 px-3 text-center text-slate-500 font-mono text-[11px]">
+                              {index + 1}
+                            </td>
+
+                            <td className="py-3 px-4 text-white font-bold whitespace-nowrap">
+                              {agent.name}
+                            </td>
+
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase border bg-amber-500/10 text-amber-400 border-amber-500/30">
+                                {agent.country}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-3 text-slate-300 font-medium whitespace-nowrap">
+                              {agent.team}
+                            </td>
+
+                            <td className="py-3 px-3 text-slate-300 whitespace-nowrap">
+                              {agent.supervisor}
+                            </td>
+
+                            <td className="py-3 px-3 text-center font-mono text-xs text-amber-300 bg-slate-900/40 whitespace-nowrap">
+                              {agent.checkIn || "—"}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono text-xs text-amber-300 bg-slate-900/40 whitespace-nowrap">
+                              {agent.checkOut || "—"}
+                            </td>
+
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                onClick={() => updateAgentField(agent.id, "isRequired", !agent.isRequired)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all ${
+                                  agent.isRequired
+                                    ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md shadow-amber-500/20"
+                                    : "bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200"
+                                }`}
+                              >
+                                {agent.isRequired ? "YES • REQUIRED" : "NO • OFF"}
+                              </button>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                                <select
+                                  value={agent.commentType}
+                                  onChange={(e) => updateAgentField(agent.id, "commentType", e.target.value)}
+                                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold border focus:outline-none ${
+                                    agent.commentType === "Shift Completed"
+                                      ? "bg-emerald-950/70 border-emerald-700/60 text-emerald-300"
+                                      : agent.commentType === "Early Out at" || agent.commentType === "Late In at"
+                                      ? "bg-amber-950/80 border-amber-600/70 text-amber-300"
+                                      : "bg-slate-800 border-slate-700 text-slate-300"
+                                  }`}
+                                >
+                                  <option value="Shift Completed">Shift Completed</option>
+                                  <option value="Early Out at">Early Out at</option>
+                                  <option value="Late In at">Late In at</option>
+                                  <option value="Not Required to Come">Not Required to Come</option>
+                                </select>
+
+                                {agent.commentType === "Not Required to Come" && (
+                                  <select
+                                    value={agent.commentDetail || "Holiday Rested"}
+                                    onChange={(e) => updateAgentField(agent.id, "commentDetail", e.target.value)}
+                                    className="bg-slate-950 border border-slate-600 rounded-lg px-2 py-1 text-xs text-amber-400 font-semibold focus:outline-none focus:border-amber-400"
+                                  >
+                                    {NOT_REQUIRED_REASONS.map(reason => (
+                                      <option key={reason} value={reason} className="bg-slate-900 text-white">
+                                        {reason}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+
+                                {(agent.commentType === "Early Out at" || agent.commentType === "Late In at") && (
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. 2:30 PM"
+                                    value={agent.commentDetail || ""}
+                                    onChange={(e) => updateAgentField(agent.id, "commentDetail", e.target.value)}
+                                    className="w-24 bg-slate-950 border border-amber-500 rounded px-2 py-0.5 text-xs text-amber-300 font-mono focus:outline-none"
+                                  />
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  onClick={() => triggerMgmtProtectedAction("EDIT_MODAL", agent)}
+                                  title="Edit Agent Information"
+                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300 transition-colors"
+                                >
+                                  <i data-lucide="edit-3" className="w-3.5 h-3.5"></i>
+                                </button>
+                                <button
+                                  onClick={() => triggerMgmtProtectedAction("DELETE_AGENT", agent)}
+                                  title="Delete Agent from Roster"
+                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600 hover:text-white text-slate-400 transition-colors"
+                                >
+                                  <i data-lucide="trash-2" className="w-3.5 h-3.5"></i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </main>
+
+          {/* FOOTER */}
+          <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
+            OFFICIAL HOLIDAY REPORT &bull; Enterprise Operations 2026 &bull; Secure Multi-Country Roster Management
+          </footer>
+
+          {/* MODAL: AGREGAR NUEVO HOLIDAY */}
+          {isNewHolidayModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto mb-3">
+                  <i data-lucide="calendar-plus" className="w-6 h-6"></i>
+                </div>
+                <h3 className="text-center text-base font-bold text-white uppercase tracking-wider">
+                  Add New Holiday
+                </h3>
+                <p className="text-center text-xs text-slate-400 mt-1">
+                  Create a new holiday to manage its attendance independently.
+                </p>
+
+                <form onSubmit={handleCreateHoliday} className="mt-4 space-y-3 text-xs">
+                  <div>
+                    <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Holiday Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Good Friday, Local Holiday"
+                      required
+                      value={newHolidayName}
+                      onChange={(e) => setNewHolidayName(e.target.value)}
+                      autoFocus
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Date (Optional label)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Apr 3, 2026"
+                      value={newHolidayDate}
+                      onChange={(e) => setNewHolidayDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsNewHolidayModalOpen(false)}
+                      className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-bold text-slate-950 transition-colors shadow-lg shadow-amber-500/20"
+                    >
+                      Create
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL: CAMBIO DE PAÍS */}
+          {isCountryAuthOpen && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto mb-3">
+                  <i data-lucide="key" className="w-6 h-6"></i>
+                </div>
+                <h3 className="text-center text-base font-bold text-white uppercase tracking-wider">
+                  Access Authorization
+                </h3>
+                <p className="text-center text-xs text-slate-400 mt-1">
+                  Enter password to access <span className="font-bold text-amber-400">{targetCountry}</span> team roster.
+                </p>
+
+                <form onSubmit={handleVerifyCountryPassword} className="mt-4 space-y-3">
+                  <div>
+                    <input
+                      type="password"
+                      placeholder={`Enter password for ${targetCountry}`}
+                      value={countryPasswordInput}
+                      onChange={(e) => {
+                        setCountryPasswordInput(e.target.value);
+                        setCountryAuthError("");
+                      }}
+                      autoFocus
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    />
+                    {countryAuthError && (
+                      <p className="text-rose-400 text-[11px] font-semibold mt-1.5 text-center">
+                        {countryAuthError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsCountryAuthOpen(false)}
+                      className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-bold text-slate-950 transition-colors shadow-lg shadow-amber-500/20"
+                    >
+                      Unlock Country
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL: AUTH GENERAL MANAGEMENT (ADD / EDIT / DELETE) */}
+          {isMgmtAuthModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto mb-3">
+                  <i data-lucide="lock" className="w-6 h-6"></i>
+                </div>
+                <h3 className="text-center text-base font-bold text-white uppercase tracking-wider">
+                  Management Authentication
+                </h3>
+                <p className="text-center text-xs text-slate-400 mt-1">
+                  Enter authorized credentials to modify agent roster data.
+                </p>
+
+                <form onSubmit={handleVerifyMgmtPassword} className="mt-4 space-y-3">
+                  <div>
+                    <input
+                      type="password"
+                      placeholder="Enter management password"
+                      value={mgmtPasswordInput}
+                      onChange={(e) => {
+                        setMgmtPasswordInput(e.target.value);
+                        setMgmtAuthError("");
+                      }}
+                      autoFocus
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+                    />
+                    {mgmtAuthError && (
+                      <p className="text-rose-400 text-[11px] font-semibold mt-1.5 text-center">
+                        {mgmtAuthError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsMgmtAuthModalOpen(false)}
+                      className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-bold text-slate-950 transition-colors shadow-lg shadow-amber-500/20"
+                    >
+                      Authorize
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL: ADD / EDIT AGENT (SIN CAMPO BRANCH) */}
+          {isAgentModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                  <h3 className="text-base font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide={modalMode === "add" ? "user-plus" : "user-check"} className="w-4 h-4"></i>
+                    {modalMode === "add" ? "Add New Agent" : "Edit Agent Details"}
+                  </h3>
+                  <button onClick={() => setIsAgentModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+
+                <form onSubmit={handleSaveAgentForm} className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={currentAgentData.name}
+                      onChange={(e) => setCurrentAgentData({ ...currentAgentData, name: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Country</label>
+                    <select
+                      value={currentAgentData.country}
+                      onChange={(e) => setCurrentAgentData({ ...currentAgentData, country: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                    >
+                      {COUNTRY_LIST.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Team / Department</label>
+                      <input
+                        type="text"
+                        value={currentAgentData.team}
+                        onChange={(e) => setCurrentAgentData({ ...currentAgentData, team: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Direct Supervisor</label>
+                      <input
+                        type="text"
+                        value={currentAgentData.supervisor}
+                        onChange={(e) => setCurrentAgentData({ ...currentAgentData, supervisor: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Check In</label>
+                      <input
+                        type="text"
+                        value={currentAgentData.checkIn}
+                        onChange={(e) => setCurrentAgentData({ ...currentAgentData, checkIn: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Check Out</label>
+                      <input
+                        type="text"
+                        value={currentAgentData.checkOut}
+                        onChange={(e) => setCurrentAgentData({ ...currentAgentData, checkOut: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <span className="text-slate-300 font-semibold">Required to Work This Holiday?</span>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentAgentData({ ...currentAgentData, isRequired: !currentAgentData.isRequired })}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold border uppercase transition-colors ${
+                        currentAgentData.isRequired
+                          ? "bg-amber-400 text-slate-950 border-amber-300"
+                          : "bg-slate-800 text-slate-400 border-slate-700"
+                      }`}
+                    >
+                      {currentAgentData.isRequired ? "YES" : "NO"}
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsAgentModalOpen(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-bold text-slate-950 transition-colors shadow-lg shadow-amber-500/20"
+                    >
+                      Save Agent
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
