@@ -12,15 +12,19 @@
       darkMode: 'class'
     }
   </script>
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <!-- Babel -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- React & ReactDOM (versiones fijadas y estables) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone (CDN oficial de cdnjs para evitar 404 de unpkg) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
+  
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- SheetJS -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
+  
+  <!-- SheetJS (xlsx) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
@@ -53,7 +57,7 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- ALMACENAMIENTO ILIMITADO MEDIANTE INDEXEDDB ---
+    // --- ALMACENAMIENTO MEDIANTE INDEXEDDB ---
     const DB_NAME = "HolidayReportsDB";
     const DB_VERSION = 1;
     const STORE_NAME = "app_data";
@@ -329,12 +333,12 @@
     function calculateHoursWorked(agent) {
       if (!agent) return { hours: 0, text: "0.0 hrs" };
 
-      // Caso: No Required to Come -> 0 Horas
+      // Caso: Not Required to Come o isRequired === false -> 0 Horas
       if (agent.commentType === "Not Required to Come" || !agent.isRequired) {
         return { hours: 0, text: "0.0 hrs" };
       }
 
-      // Caso: Shift Completed -> 9.0 Horas (o turno regular)
+      // Caso: Shift Completed -> 9.0 Horas
       if (agent.commentType === "Shift Completed") {
         return { hours: 9, text: "9.0 hrs" };
       }
@@ -345,7 +349,7 @@
         const exitM = parseTimeToMinutes(agent.commentDetail);
         if (startM !== null && exitM !== null) {
           let diff = exitM - startM;
-          if (diff < 0) diff += 1440; // Si cruza medianoche
+          if (diff < 0) diff += 1440; // Manejo cruce medianoche
           const hrs = Math.max(0, diff / 60);
           return { hours: hrs, text: `${hrs.toFixed(1)} hrs` };
         }
@@ -358,7 +362,7 @@
         const endM = parseTimeToMinutes(agent.checkOut);
         if (lateArrivalM !== null && endM !== null) {
           let diff = endM - lateArrivalM;
-          if (diff < 0) diff += 1440; // Si cruza medianoche
+          if (diff < 0) diff += 1440; // Manejo cruce medianoche
           const hrs = Math.max(0, diff / 60);
           return { hours: hrs, text: `${hrs.toFixed(1)} hrs` };
         }
@@ -407,7 +411,7 @@
       const [holidaysData, setHolidaysData] = useState({ "labor": INITIAL_ROSTER });
       const [saveNotice, setSaveNotice] = useState("");
 
-      // ESTADO DE SELECCIÓN MÚLTIPLE DE AGENTES
+      // ESTADO DE SELECCIÓN MÚLTIPLE
       const [selectedAgentIds, setSelectedAgentIds] = useState(new Set());
 
       useEffect(() => {
@@ -428,7 +432,6 @@
       const [newHolidayName, setNewHolidayName] = useState("");
       const [newHolidayDate, setNewHolidayDate] = useState("");
 
-      // ORDEN AUTOMÁTICO DE LOS FERIADOS: DEL MÁS ANTIGUO (ARRIBA) AL MÁS NUEVO (ABAJO)
       const sortedHolidaysList = useMemo(() => {
         return [...holidaysList].sort((a, b) => {
           const indexA = holidaysList.indexOf(a);
@@ -462,7 +465,6 @@
         }
       };
 
-      // GUARDA LOS AGENTES GLOBALES EN TODOS LOS FERIADOS
       const handleSaveTeamGlobally = async () => {
         try {
           const currentAgents = holidaysData[selectedHolidayId] || INITIAL_ROSTER;
@@ -497,7 +499,7 @@
           setHolidaysData(updatedHolidaysData);
           await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedHolidaysData);
 
-          setSaveNotice("Team changes (added, edited, or removed agents) successfully saved across ALL holidays!");
+          setSaveNotice("Team changes successfully saved across ALL holidays!");
           setTimeout(() => setSaveNotice(""), 4500);
         } catch (e) {
           alert("Error guardando equipo globalmente: " + e.message);
@@ -531,7 +533,6 @@
         setIsNewHolidayModalOpen(false);
       };
 
-      // ELIMINAR FERIADO ACTUAL
       const executeRemoveHoliday = async (holidayIdToRemove) => {
         if (holidaysList.length <= 1) {
           alert("At least one holiday must remain in the catalog.");
@@ -682,7 +683,6 @@
         });
       }, [staff, filterCountry, searchTerm, filterTeam, filterSupervisor, filterRequirement, filterComment]);
 
-      // SELECCIÓN MÚLTIPLE HELPERS
       const areAllFilteredSelected = useMemo(() => {
         if (filteredStaff.length === 0) return false;
         return filteredStaff.every(a => selectedAgentIds.has(a.id));
@@ -712,7 +712,6 @@
         });
       };
 
-      // MOTOR DE DISPONIBILIDAD REACTIVO
       const runAvailabilityOptimization = (pct = targetPercentage) => {
         const agents = [...countryStaffAll];
         const total = agents.length;
@@ -917,7 +916,6 @@
         setIsAgentModalOpen(false);
       };
 
-      // GUARDADO DE EDICIÓN EN LOTE
       const handleSaveBulkEditForm = (e) => {
         e.preventDefault();
         setStaff(prev =>
@@ -1095,7 +1093,7 @@
                 </div>
               </div>
 
-              {/* Selector de Feriado + Botones de Encabezado */}
+              {/* Selector de Feriado + Botones */}
               <div className="flex items-center flex-wrap gap-2.5">
                 <div className={`flex items-center border rounded-xl px-3 py-1.5 shadow-inner ${
                   isDarkMode ? "bg-slate-950 border-amber-500/30" : "bg-slate-100 border-amber-500/40"
@@ -1129,7 +1127,6 @@
                   <span>Add Holiday</span>
                 </button>
 
-                {/* BOTÓN PARA REMOVER FERIADO */}
                 <button
                   onClick={() => triggerMgmtProtectedAction("REMOVE_HOLIDAY", selectedHolidayId)}
                   title="Remove Current Holiday"
@@ -1158,7 +1155,7 @@
             </div>
           </header>
 
-          {/* Notificación de guardado */}
+          {/* Notificación */}
           {saveNotice && (
             <div className="bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 text-xs font-bold py-2 px-4 text-center transition-all shadow-md flex items-center justify-center gap-2">
               <i data-lucide="check-circle" className="w-4 h-4"></i>
@@ -1225,7 +1222,7 @@
             }`}>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 
-                {/* Selector de País con Opción ALL COUNTRIES */}
+                {/* Selector de País */}
                 <div className={`border rounded-xl p-2 ${
                   isDarkMode ? "bg-amber-500/10 border-amber-500/40" : "bg-amber-50/70 border-amber-300"
                 }`}>
@@ -1310,7 +1307,7 @@
                   </select>
                 </div>
 
-                {/* Status / Comment Filter */}
+                {/* Status Comment Filter */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 block">Status Comment</label>
                   <select
@@ -1413,7 +1410,7 @@
                 </div>
               </div>
 
-              {/* BARRA FLOTANTE DE SELECCIÓN MÚLTIPLE */}
+              {/* BARRA FLOTANTE SELECCIÓN MÚLTIPLE */}
               {selectedAgentIds.size > 0 && (
                 <div className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 animate-fade-in ${
                   isDarkMode 
@@ -1621,7 +1618,7 @@
                               </div>
                             </td>
 
-                            {/* NUEVA COLUMNA: TOTAL HOURS WORKED */}
+                            {/* TOTAL HOURS WORKED */}
                             <td className="py-3 px-3 text-center whitespace-nowrap">
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-lg font-mono text-xs font-bold border ${
                                 hoursInfo.text === "Pending Time"
