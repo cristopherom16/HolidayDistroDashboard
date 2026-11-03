@@ -585,7 +585,7 @@
         if (countryPasswordInput === requiredPass) {
           setFilterCountry(targetCountry);
           setIsCountryAuthOpen(false);
-          setSelectedAgentIds(new Set()); // Limpiar selección al cambiar de país
+          setSelectedAgentIds(new Set());
         } else {
           setCountryAuthError(`Contraseña incorrecta para ${targetCountry}.`);
         }
@@ -601,7 +601,7 @@
       const supervisors = useMemo(() => {
         const countryStaff = filterCountry === "ALL" 
           ? staff 
-          : staff.filter(s => s.supervisor));
+          : staff.filter(s => s.country === filterCountry);
         return ["ALL", ...new Set(countryStaff.map(s => s.supervisor))].sort();
       }, [staff, filterCountry]);
 
@@ -1084,10 +1084,7 @@
 
                 {/* BOTÓN PARA REMOVER FERIADO */}
                 <button
-                  onClick={() => {
-                    const currentHoliday = holidaysList.find(h => h.id === selectedHolidayId);
-                    triggerMgmtProtectedAction("REMOVE_HOLIDAY", selectedHolidayId);
-                  }}
+                  onClick={() => triggerMgmtProtectedAction("REMOVE_HOLIDAY", selectedHolidayId)}
                   title="Remove Current Holiday"
                   className="px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/50 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
                 >
@@ -1288,13 +1285,11 @@
 
               </div>
 
-              {/* BARRA DE ACCIÓN: ADD AGENT, SAVE TEAM, CALCULATE AVAILABILITY & BULK */}
+              {/* BARRA DE ACCIÓN */}
               <div className={`pt-3 border-t flex flex-wrap items-center justify-between gap-3 ${
                 isDarkMode ? "border-slate-800" : "border-slate-200"
               }`}>
                 <div className="flex items-start sm:items-center flex-wrap gap-2.5">
-                  
-                  {/* Botones verticales / agrupados: Add Agent y Save Team */}
                   <div className="flex flex-col sm:flex-row gap-2">
                     <button
                       onClick={() => triggerMgmtProtectedAction("ADD_MODAL", null)}
@@ -1306,7 +1301,7 @@
 
                     <button
                       onClick={handleSaveTeamGlobally}
-                      title="Save current team changes (additions, edits, deletions) across all holidays"
+                      title="Save current team changes across all holidays"
                       className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 border shadow-md active:scale-95 transition-all ${
                         isDarkMode
                           ? "bg-slate-800 hover:bg-slate-700 text-amber-400 border-amber-500/40 hover:border-amber-400"
@@ -1371,7 +1366,7 @@
                 </div>
               </div>
 
-              {/* BARRA FLOTANTE / CONTEXTUAL DE SELECCIÓN MÚLTIPLE */}
+              {/* BARRA FLOTANTE DE SELECCIÓN MÚLTIPLE */}
               {selectedAgentIds.size > 0 && (
                 <div className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 animate-fade-in ${
                   isDarkMode 
@@ -1437,8 +1432,6 @@
                       <th className={`py-3 px-3 text-center ${isDarkMode ? "bg-slate-800/40 text-amber-300" : "bg-amber-100/60 text-amber-800"}`}>Check Out</th>
                       <th className="py-3 px-3 text-center">Required to Work?</th>
                       <th className="py-3 px-4">Status & Reason/Time</th>
-                      
-                      {/* ACCIONES CON CHECKBOX PARA SELECCIÓN GLOBAL */}
                       <th className="py-3 px-3 text-center w-28">
                         <div className="inline-flex items-center gap-1.5">
                           <input
@@ -1578,7 +1571,6 @@
 
                             <td className="py-3 px-3 text-center whitespace-nowrap">
                               <div className="inline-flex items-center gap-1.5">
-                                {/* CHECKBOX INDIVIDUAL POR FILA */}
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
@@ -1668,7 +1660,6 @@
                   </button>
                 </div>
 
-                {/* SELECTOR DE PORCENTAJE */}
                 <div className={`p-4 rounded-xl border mb-5 ${
                   isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200"
                 }`}>
@@ -1696,7 +1687,6 @@
                   </div>
                 </div>
 
-                {/* RESULTADOS REACTIVOS DEL CÁLCULO */}
                 {availabilityResult && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1720,7 +1710,6 @@
                       </div>
                     </div>
 
-                    {/* Operational Compliance Check */}
                     <div className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
                       isDarkMode ? "bg-slate-950/70 border-slate-800" : "bg-slate-50 border-slate-200"
                     }`}>
@@ -1746,7 +1735,6 @@
                       </div>
                     </div>
 
-                    {/* Schedule distribution table */}
                     <div>
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                         Recommended Shift Schedule Breakdown:
