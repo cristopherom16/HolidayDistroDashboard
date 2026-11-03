@@ -325,6 +325,26 @@
       return hours * 60 + minutes;
     }
 
+    function parseHolidayDateWeight(holidayObj, index) {
+      if (!holidayObj || !holidayObj.name) return index;
+      const text = holidayObj.name;
+      const parenMatch = text.match(/\(([^)]+)\)/);
+      let dateStrToParse = parenMatch ? parenMatch[1] : text;
+      dateStrToParse = dateStrToParse.replace(/Observed\s*[-–]?\s*/i, "").trim();
+
+      const parsed = Date.parse(dateStrToParse);
+      if (!isNaN(parsed)) {
+        return parsed;
+      }
+      const matchMonthDay = dateStrToParse.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})(?:,?\s*(\d{4}))?/i);
+      if (matchMonthDay) {
+        const year = matchMonthDay[3] || "2026";
+        const parsedManual = Date.parse(`${matchMonthDay[1]} ${matchMonthDay[2]}, ${year}`);
+        if (!isNaN(parsedManual)) return parsedManual;
+      }
+      return 9999999999000 + index;
+    }
+
     function App() {
       const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -364,6 +384,15 @@
       const [isNewHolidayModalOpen, setIsNewHolidayModalOpen] = useState(false);
       const [newHolidayName, setNewHolidayName] = useState("");
       const [newHolidayDate, setNewHolidayDate] = useState("");
+
+      // ORDEN AUTOMÁTICO DE LOS FERIADOS: DEL MÁS ANTIGUO (ARRIBA) AL MÁS NUEVO (ABAJO)
+      const sortedHolidaysList = useMemo(() => {
+        return [...holidaysList].sort((a, b) => {
+          const indexA = holidaysList.indexOf(a);
+          const indexB = holidaysList.indexOf(b);
+          return parseHolidayDateWeight(a, indexA) - parseHolidayDateWeight(b, indexB);
+        });
+      }, [holidaysList]);
 
       const staff = useMemo(() => {
         return holidaysData[selectedHolidayId] || INITIAL_ROSTER;
@@ -459,6 +488,31 @@
         setIsNewHolidayModalOpen(false);
       };
 
+      // ELIMINAR FERIADO ACTUAL
+      const executeRemoveHoliday = async (holidayIdToRemove) => {
+        if (holidaysList.length <= 1) {
+          alert("At least one holiday must remain in the catalog.");
+          return;
+        }
+
+        const updatedList = holidaysList.filter(h => h.id !== holidayIdToRemove);
+        const updatedData = { ...holidaysData };
+        delete updatedData[holidayIdToRemove];
+
+        setHolidaysList(updatedList);
+        setHolidaysData(updatedData);
+
+        await idb.set("OFFICIAL_HOLIDAYS_CATALOG", updatedList);
+        await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedData);
+
+        const nextSelected = updatedList[0]?.id || "labor";
+        setSelectedHolidayId(nextSelected);
+        setSelectedAgentIds(new Set());
+
+        setSaveNotice("Holiday removed successfully!");
+        setTimeout(() => setSaveNotice(""), 3500);
+      };
+
       // Filtros
       const [filterCountry, setFilterCountry] = useState("Guatemala");
       const [searchTerm, setSearchTerm] = useState("");
@@ -547,7 +601,7 @@
       const supervisors = useMemo(() => {
         const countryStaff = filterCountry === "ALL" 
           ? staff 
-          : staff.filter(s => s.country === filterCountry);
+          : staff.filter(s => s.supervisor));
         return ["ALL", ...new Set(countryStaff.map(s => s.supervisor))].sort();
       }, [staff, filterCountry]);
 
@@ -797,6 +851,8 @@
               commentDetail: ""
             });
             setIsBulkEditModalOpen(true);
+          } else if (type === "REMOVE_HOLIDAY") {
+            executeRemoveHoliday(payload);
           }
         } else {
           setMgmtAuthError("Contraseña de gestión incorrecta.");
@@ -955,6 +1011,7 @@
       }, [
         selectedHolidayId,
         holidaysList,
+        sortedHolidaysList,
         holidaysData,
         filterCountry,
         filteredStaff,
@@ -1006,7 +1063,7 @@
                     }}
                     className="bg-transparent text-amber-600 dark:text-amber-400 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer pr-2 max-w-[220px] sm:max-w-[280px] truncate"
                   >
-                    {holidaysList.map(h => (
+                    {sortedHolidaysList.map(h => (
                       <option key={h.id} value={h.id} className="bg-slate-900 text-white py-1">
                         {h.name}
                       </option>
@@ -1023,6 +1080,19 @@
                 >
                   <i data-lucide="calendar-plus" className="w-4 h-4"></i>
                   <span>Add Holiday</span>
+                </button>
+
+                {/* BOTÓN PARA REMOVER FERIADO */}
+                <button
+                  onClick={() => {
+                    const currentHoliday = holidaysList.find(h => h.id === selectedHolidayId);
+                    triggerMgmtProtectedAction("REMOVE_HOLIDAY", selectedHolidayId);
+                  }}
+                  title="Remove Current Holiday"
+                  className="px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/50 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
+                >
+                  <i data-lucide="calendar-x" className="w-4 h-4"></i>
+                  <span>Remove Holiday</span>
                 </button>
 
                 <button
@@ -1996,6 +2066,8 @@
                     ? `Enter credentials to permanently remove ${mgmtActionPayload.payload.size} selected agent(s).`
                     : mgmtActionPayload?.type === "BULK_EDIT_MODAL"
                     ? `Enter credentials to modify ${selectedAgentIds.size} selected agent(s) in bulk.`
+                    : mgmtActionPayload?.type === "REMOVE_HOLIDAY"
+                    ? `Enter credentials to permanently delete holiday: "${holidaysList.find(h => h.id === mgmtActionPayload.payload)?.name || mgmtActionPayload.payload}".`
                     : "Enter authorized credentials to modify agent roster data."}
                 </p>
 
