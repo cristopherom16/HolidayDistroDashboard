@@ -342,7 +342,7 @@
       const [holidaysList, setHolidaysList] = useState(DEFAULT_US_HOLIDAYS_2026);
       const [selectedHolidayId, setSelectedHolidayId] = useState("labor");
       const [holidaysData, setHolidaysData] = useState({ "labor": INITIAL_ROSTER });
-      const [saveNotice, setSaveNotice] = useState(false);
+      const [saveNotice, setSaveNotice] = useState("");
 
       useEffect(() => {
         async function loadStored() {
@@ -380,10 +380,57 @@
         try {
           await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", holidaysData);
           await idb.set("OFFICIAL_HOLIDAYS_CATALOG", holidaysList);
-          setSaveNotice(true);
-          setTimeout(() => setSaveNotice(false), 3000);
+          setSaveNotice("Holiday report data saved successfully!");
+          setTimeout(() => setSaveNotice(""), 3500);
         } catch (e) {
           alert("Error guardando: " + e.message);
+        }
+      };
+
+      // GUARDA LOS AGENTES GLOBALES EN TODOS LOS FERIADOS
+      const handleSaveTeamGlobally = async () => {
+        try {
+          const currentAgents = holidaysData[selectedHolidayId] || INITIAL_ROSTER;
+
+          const updatedHolidaysData = { ...holidaysData };
+
+          // Lista de todos los feriados actuales registrados o por defecto
+          const allHolidayIds = holidaysList.map(h => h.id);
+          if (!allHolidayIds.includes(selectedHolidayId)) {
+            allHolidayIds.push(selectedHolidayId);
+          }
+
+          allHolidayIds.forEach(holidayId => {
+            const holidayRoster = holidaysData[holidayId] || INITIAL_ROSTER;
+            const existingMap = new Map(holidayRoster.map(a => [a.id, a]));
+
+            // Mapeamos los agentes del roster actual sincronizando perfil y agregando nuevos
+            const newHolidayRoster = currentAgents.map(currentAgent => {
+              const existing = existingMap.get(currentAgent.id);
+              if (existing) {
+                // Conserva el estatus específico del holiday si ya existía, pero actualiza datos de perfil
+                return {
+                  ...currentAgent,
+                  isRequired: existing.isRequired,
+                  commentType: existing.commentType,
+                  commentDetail: existing.commentDetail
+                };
+              } else {
+                // Si es nuevo agente, lo incorpora por defecto
+                return { ...currentAgent };
+              }
+            });
+
+            updatedHolidaysData[holidayId] = newHolidayRoster;
+          });
+
+          setHolidaysData(updatedHolidaysData);
+          await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedHolidaysData);
+
+          setSaveNotice("Team changes (added, edited, or removed agents) successfully saved across ALL holidays!");
+          setTimeout(() => setSaveNotice(""), 4500);
+        } catch (e) {
+          alert("Error guardando equipo globalmente: " + e.message);
         }
       };
 
@@ -403,7 +450,8 @@
         setHolidaysList(updatedList);
         await idb.set("OFFICIAL_HOLIDAYS_CATALOG", updatedList);
 
-        const updatedData = { ...holidaysData, [newId]: INITIAL_ROSTER };
+        const currentTemplate = holidaysData[selectedHolidayId] || INITIAL_ROSTER;
+        const updatedData = { ...holidaysData, [newId]: currentTemplate };
         setHolidaysData(updatedData);
         await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedData);
 
@@ -820,7 +868,7 @@
 
       return (
         <div className={`flex flex-col min-h-screen ${isDarkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-800"}`}>
-          {/* HEADER PRINCIPAL: Con márgenes ajustados a 15mm */}
+          {/* HEADER PRINCIPAL */}
           <header className={`border-b sticky top-0 z-30 shadow-xl backdrop-blur-md transition-colors ${
             isDarkMode 
               ? "border-amber-500/20 bg-slate-900/90 shadow-amber-950/10" 
@@ -896,12 +944,13 @@
 
           {/* Notificación de guardado */}
           {saveNotice && (
-            <div className="bg-amber-500 text-slate-950 text-xs font-bold py-1.5 px-4 text-center transition-all animate-pulse">
-              ✓ Holiday Report Data saved successfully to persistent storage!
+            <div className="bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 text-xs font-bold py-2 px-4 text-center transition-all shadow-md flex items-center justify-center gap-2">
+              <i data-lucide="check-circle" className="w-4 h-4"></i>
+              <span>{saveNotice}</span>
             </div>
           )}
 
-          {/* MAIN CONTAINER: Con bordes extendidos a 15mm de la derecha y 15mm antes del icono de tema */}
+          {/* MAIN CONTAINER */}
           <main className="flex-1 w-full pl-[15mm] md:pl-[calc(15mm+48px+15mm)] pr-[15mm] py-6 space-y-6">
             
             {/* KPI STAT CARDS */}
@@ -960,7 +1009,7 @@
             }`}>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 
-                {/* Selector de País con Opción ALL COUNTRIES (Protegida) */}
+                {/* Selector de País con Opción ALL COUNTRIES */}
                 <div className={`border rounded-xl p-2 ${
                   isDarkMode ? "bg-amber-500/10 border-amber-500/40" : "bg-amber-50/70 border-amber-300"
                 }`}>
@@ -1067,18 +1116,35 @@
 
               </div>
 
-              {/* BARRA: ADD AGENT & CALCULATE AVAILABILITY & BULK */}
+              {/* BARRA DE ACCIÓN: ADD AGENT, SAVE TEAM, CALCULATE AVAILABILITY & BULK */}
               <div className={`pt-3 border-t flex flex-wrap items-center justify-between gap-3 ${
                 isDarkMode ? "border-slate-800" : "border-slate-200"
               }`}>
-                <div className="flex items-center flex-wrap gap-2.5">
-                  <button
-                    onClick={() => triggerMgmtProtectedAction("ADD_MODAL", null)}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
-                  >
-                    <i data-lucide="user-plus" className="w-4 h-4"></i>
-                    <span>Add Agent</span>
-                  </button>
+                <div className="flex items-start sm:items-center flex-wrap gap-2.5">
+                  
+                  {/* Botones verticales / agrupados: Add Agent y Save Team */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={() => triggerMgmtProtectedAction("ADD_MODAL", null)}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+                    >
+                      <i data-lucide="user-plus" className="w-4 h-4"></i>
+                      <span>Add Agent</span>
+                    </button>
+
+                    <button
+                      onClick={handleSaveTeamGlobally}
+                      title="Save current team changes (additions, edits, deletions) across all holidays"
+                      className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 border shadow-md active:scale-95 transition-all ${
+                        isDarkMode
+                          ? "bg-slate-800 hover:bg-slate-700 text-amber-400 border-amber-500/40 hover:border-amber-400"
+                          : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300"
+                      }`}
+                    >
+                      <i data-lucide="users" className="w-4 h-4"></i>
+                      <span>Save Team</span>
+                    </button>
+                  </div>
 
                   <button
                     onClick={() => {
@@ -1321,7 +1387,7 @@
             OFFICIAL HOLIDAY REPORT &bull; Enterprise Operations 2026 &bull; Secure Multi-Country Roster Management
           </footer>
 
-          {/* BOTÓN FLOTANTE EN ESQUINA INFERIOR IZQUIERDA A 15mm EXACTOS DEL BORDE */}
+          {/* BOTÓN FLOTANTE MODO OSCURO/CLARO */}
           <div className="fixed bottom-[15mm] left-[15mm] z-40">
             <button
               onClick={() => setIsDarkMode(prev => !prev)}
@@ -1336,7 +1402,7 @@
             </button>
           </div>
 
-          {/* MODAL: CALCULATE AVAILABILITY (Sin botones de confirmación, 100% dinámico) */}
+          {/* MODAL: CALCULATE AVAILABILITY */}
           {isAvailabilityModalOpen && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className={`border rounded-2xl max-w-xl w-full p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto ${
@@ -1362,7 +1428,7 @@
                   </button>
                 </div>
 
-                {/* SELECTOR DE PORCENTAJE (50% a 100% de 10 en 10) */}
+                {/* SELECTOR DE PORCENTAJE */}
                 <div className={`p-4 rounded-xl border mb-5 ${
                   isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200"
                 }`}>
