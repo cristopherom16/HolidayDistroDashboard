@@ -13,15 +13,15 @@
     }
   </script>
   
-  <!-- React & ReactDOM (versiones fijadas y estables) -->
+  <!-- React & ReactDOM -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   
-  <!-- Babel Standalone (CDN oficial de cdnjs para evitar 404 de unpkg) -->
+  <!-- Babel Standalone -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
   
-  <!-- Lucide Icons -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
+  <!-- Lucide Icons (Versión oficial completa) -->
+  <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- SheetJS (xlsx) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -329,40 +329,35 @@
       return hours * 60 + minutes;
     }
 
-    // Calcula horas trabajadas numéricas y formato string
     function calculateHoursWorked(agent) {
       if (!agent) return { hours: 0, text: "0.0 hrs" };
 
-      // Caso: Not Required to Come o isRequired === false -> 0 Horas
       if (agent.commentType === "Not Required to Come" || !agent.isRequired) {
         return { hours: 0, text: "0.0 hrs" };
       }
 
-      // Caso: Shift Completed -> 9.0 Horas
       if (agent.commentType === "Shift Completed") {
         return { hours: 9, text: "9.0 hrs" };
       }
 
-      // Caso: Early Out at -> Desde CheckIn hasta la hora que se fue (commentDetail)
       if (agent.commentType === "Early Out at") {
         const startM = parseTimeToMinutes(agent.checkIn);
         const exitM = parseTimeToMinutes(agent.commentDetail);
         if (startM !== null && exitM !== null) {
           let diff = exitM - startM;
-          if (diff < 0) diff += 1440; // Manejo cruce medianoche
+          if (diff < 0) diff += 1440;
           const hrs = Math.max(0, diff / 60);
           return { hours: hrs, text: `${hrs.toFixed(1)} hrs` };
         }
         return { hours: 0, text: "Pending Time" };
       }
 
-      // Caso: Late In at -> Desde la hora que llegó (commentDetail) hasta CheckOut
       if (agent.commentType === "Late In at") {
         const lateArrivalM = parseTimeToMinutes(agent.commentDetail);
         const endM = parseTimeToMinutes(agent.checkOut);
         if (lateArrivalM !== null && endM !== null) {
           let diff = endM - lateArrivalM;
-          if (diff < 0) diff += 1440; // Manejo cruce medianoche
+          if (diff < 0) diff += 1440;
           const hrs = Math.max(0, diff / 60);
           return { hours: hrs, text: `${hrs.toFixed(1)} hrs` };
         }
@@ -410,8 +405,6 @@
       const [selectedHolidayId, setSelectedHolidayId] = useState("labor");
       const [holidaysData, setHolidaysData] = useState({ "labor": INITIAL_ROSTER });
       const [saveNotice, setSaveNotice] = useState("");
-
-      // ESTADO DE SELECCIÓN MÚLTIPLE
       const [selectedAgentIds, setSelectedAgentIds] = useState(new Set());
 
       useEffect(() => {
@@ -1049,10 +1042,16 @@
         XLSX.writeFile(workbook, `OFFICIAL_HOLIDAY_REPORT_${filterCountry}_${holidaySlug}.xlsx`);
       };
 
+      // Disparador de renderizado de iconos Lucide garantizado
       useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
+        const renderLucide = () => {
+          if (window.lucide && typeof window.lucide.createIcons === "function") {
+            window.lucide.createIcons();
+          }
+        };
+        renderLucide();
+        const timer = setTimeout(renderLucide, 100);
+        return () => clearTimeout(timer);
       }, [
         selectedHolidayId,
         holidaysList,
@@ -1629,7 +1628,7 @@
                                   ? (isDarkMode ? "bg-emerald-950/40 border-emerald-600/40 text-emerald-400" : "bg-emerald-50 border-emerald-300 text-emerald-700")
                                   : (isDarkMode ? "bg-indigo-950/50 border-indigo-500/40 text-indigo-300" : "bg-indigo-50 border-indigo-300 text-indigo-700")
                               }`}>
-                                <i data-lucide="clock" className="w-3 h-3 mr-1.5 opacity-75"></i>
+                                <i data-lucide="clock" className="w-3.5 h-3.5 mr-1.5 opacity-75"></i>
                                 {hoursInfo.text}
                               </span>
                             </td>
