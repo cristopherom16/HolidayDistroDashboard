@@ -20,7 +20,7 @@
   <!-- Babel Standalone -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
   
-  <!-- Lucide Icons (Versión oficial completa) -->
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- SheetJS (xlsx) -->
@@ -54,10 +54,53 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div id="root"></div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+  <!-- CONEXIÓN DE FIREBASE REALTIME DATABASE -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-database.js";
 
-    // --- ALMACENAMIENTO MEDIANTE INDEXEDDB ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBd8l-k4JCx0ptos6h_0tkbqXz1yuoIiNk",
+      authDomain: "holidaysreport-9d87f.firebaseapp.com",
+      databaseURL: "https://holidaysreport-9d87f-default-rtdb.firebaseio.com",
+      projectId: "holidaysreport-9d87f",
+      storageBucket: "holidaysreport-9d87f.firebasestorage.app",
+      messagingSenderId: "1056416840885",
+      appId: "1:1056416840885:web:d4d6f246f971e16f4052fc",
+      measurementId: "G-LEPXSZXCEL"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    window.FirebaseBridge = {
+      db,
+      refHolidaysCatalog: ref(db, 'holiday_reports/catalog'),
+      refHolidaysData: ref(db, 'holiday_reports/data'),
+      saveCatalog(catalog) {
+        return set(this.refHolidaysCatalog, catalog);
+      },
+      saveData(data) {
+        return set(this.refHolidaysData, data);
+      },
+      subscribe(onCatalogReceived, onDataReceived) {
+        onValue(this.refHolidaysCatalog, (snapshot) => {
+          const val = snapshot.val();
+          if (val) onCatalogReceived(val);
+        });
+        onValue(this.refHolidaysData, (snapshot) => {
+          const val = snapshot.val();
+          if (val) onDataReceived(val);
+        });
+      }
+    };
+
+    window.dispatchEvent(new Event('firebase-ready'));
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
     const DB_NAME = "HolidayReportsDB";
     const DB_VERSION = 1;
     const STORE_NAME = "app_data";
@@ -406,19 +449,54 @@
       const [holidaysData, setHolidaysData] = useState({ "labor": INITIAL_ROSTER });
       const [saveNotice, setSaveNotice] = useState("");
       const [selectedAgentIds, setSelectedAgentIds] = useState(new Set());
+      const [isSyncing, setIsSyncing] = useState(false);
 
+      const isRemoteUpdate = useRef(false);
+
+      // CARGA INICIAL Y ESCUCHA EN TIEMPO REAL CON FIREBASE
       useEffect(() => {
-        async function loadStored() {
+        const initSync = async () => {
+          // Intentar IndexedDB como fallback instantáneo
           try {
             const list = await idb.get("OFFICIAL_HOLIDAYS_CATALOG");
             const data = await idb.get("OFFICIAL_HOLIDAY_REPORTS_V4");
             if (list && Array.isArray(list)) setHolidaysList(list);
             if (data && typeof data === "object") setHolidaysData(data);
           } catch (e) {
-            console.error("Error al cargar datos:", e);
+            console.error("IndexedDB local error:", e);
           }
-        }
-        loadStored();
+
+          const setupFirebaseListeners = () => {
+            if (window.FirebaseBridge) {
+              window.FirebaseBridge.subscribe(
+                (remoteCatalog) => {
+                  if (Array.isArray(remoteCatalog) && remoteCatalog.length > 0) {
+                    isRemoteUpdate.current = true;
+                    setHolidaysList(remoteCatalog);
+                    idb.set("OFFICIAL_HOLIDAYS_CATALOG", remoteCatalog);
+                    setTimeout(() => { isRemoteUpdate.current = false; }, 200);
+                  }
+                },
+                (remoteData) => {
+                  if (remoteData && typeof remoteData === "object") {
+                    isRemoteUpdate.current = true;
+                    setHolidaysData(remoteData);
+                    idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", remoteData);
+                    setTimeout(() => { isRemoteUpdate.current = false; }, 200);
+                  }
+                }
+              );
+            }
+          };
+
+          if (window.FirebaseBridge) {
+            setupFirebaseListeners();
+          } else {
+            window.addEventListener('firebase-ready', setupFirebaseListeners, { once: true });
+          }
+        };
+
+        initSync();
       }, []);
 
       const [isNewHolidayModalOpen, setIsNewHolidayModalOpen] = useState(false);
@@ -442,23 +520,37 @@
           const currentList = prev[selectedHolidayId] || INITIAL_ROSTER;
           const nextList = typeof updater === "function" ? updater(currentList) : updater;
           const updatedState = { ...prev, [selectedHolidayId]: nextList };
+          
           idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedState);
+          if (window.FirebaseBridge && !isRemoteUpdate.current) {
+            window.FirebaseBridge.saveData(updatedState).catch(e => console.error("Firebase update failed:", e));
+          }
           return updatedState;
         });
       };
 
       const handleSaveHolidayManually = async () => {
+        setIsSyncing(true);
         try {
           await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", holidaysData);
           await idb.set("OFFICIAL_HOLIDAYS_CATALOG", holidaysList);
-          setSaveNotice("Holiday report data saved successfully!");
+          
+          if (window.FirebaseBridge) {
+            await window.FirebaseBridge.saveData(holidaysData);
+            await window.FirebaseBridge.saveCatalog(holidaysList);
+          }
+          
+          setSaveNotice("Data synced to Cloud and saved successfully!");
           setTimeout(() => setSaveNotice(""), 3500);
         } catch (e) {
           alert("Error guardando: " + e.message);
+        } finally {
+          setIsSyncing(false);
         }
       };
 
       const handleSaveTeamGlobally = async () => {
+        setIsSyncing(true);
         try {
           const currentAgents = holidaysData[selectedHolidayId] || INITIAL_ROSTER;
           const updatedHolidaysData = { ...holidaysData };
@@ -492,10 +584,16 @@
           setHolidaysData(updatedHolidaysData);
           await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedHolidaysData);
 
-          setSaveNotice("Team changes successfully saved across ALL holidays!");
+          if (window.FirebaseBridge) {
+            await window.FirebaseBridge.saveData(updatedHolidaysData);
+          }
+
+          setSaveNotice("Team roster propagated globally to Cloud for all holidays!");
           setTimeout(() => setSaveNotice(""), 4500);
         } catch (e) {
           alert("Error guardando equipo globalmente: " + e.message);
+        } finally {
+          setIsSyncing(false);
         }
       };
 
@@ -520,6 +618,11 @@
         setHolidaysData(updatedData);
         await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedData);
 
+        if (window.FirebaseBridge) {
+          window.FirebaseBridge.saveCatalog(updatedList);
+          window.FirebaseBridge.saveData(updatedData);
+        }
+
         setSelectedHolidayId(newId);
         setNewHolidayName("");
         setNewHolidayDate("");
@@ -542,11 +645,16 @@
         await idb.set("OFFICIAL_HOLIDAYS_CATALOG", updatedList);
         await idb.set("OFFICIAL_HOLIDAY_REPORTS_V4", updatedData);
 
+        if (window.FirebaseBridge) {
+          window.FirebaseBridge.saveCatalog(updatedList);
+          window.FirebaseBridge.saveData(updatedData);
+        }
+
         const nextSelected = updatedList[0]?.id || "labor";
         setSelectedHolidayId(nextSelected);
         setSelectedAgentIds(new Set());
 
-        setSaveNotice("Holiday removed successfully!");
+        setSaveNotice("Holiday removed and synced to Cloud!");
         setTimeout(() => setSaveNotice(""), 3500);
       };
 
@@ -1042,7 +1150,6 @@
         XLSX.writeFile(workbook, `OFFICIAL_HOLIDAY_REPORT_${filterCountry}_${holidaySlug}.xlsx`);
       };
 
-      // Disparador de renderizado de iconos Lucide garantizado
       useEffect(() => {
         const renderLucide = () => {
           if (window.lucide && typeof window.lucide.createIcons === "function") {
@@ -1086,6 +1193,10 @@
                     </h1>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 uppercase tracking-widest">
                       2026 EDITION
+                    </span>
+                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Cloud Synced
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Global Workforce Holiday Attendance & Dispatch System</p>
@@ -1137,10 +1248,11 @@
 
                 <button
                   onClick={handleSaveHolidayManually}
-                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+                  disabled={isSyncing}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 disabled:opacity-50"
                 >
-                  <i data-lucide="save" className="w-4 h-4"></i>
-                  <span>Save Holiday</span>
+                  <i data-lucide="cloud" className="w-4 h-4"></i>
+                  <span>{isSyncing ? "Syncing..." : "Sync Cloud"}</span>
                 </button>
 
                 <button
@@ -1344,15 +1456,16 @@
 
                     <button
                       onClick={handleSaveTeamGlobally}
+                      disabled={isSyncing}
                       title="Save current team changes across all holidays"
-                      className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 border shadow-md active:scale-95 transition-all ${
+                      className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 border shadow-md active:scale-95 transition-all disabled:opacity-50 ${
                         isDarkMode
                           ? "bg-slate-800 hover:bg-slate-700 text-amber-400 border-amber-500/40 hover:border-amber-400"
                           : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300"
                       }`}
                     >
                       <i data-lucide="users" className="w-4 h-4"></i>
-                      <span>Save Team</span>
+                      <span>{isSyncing ? "Saving..." : "Save Team"}</span>
                     </button>
                   </div>
 
